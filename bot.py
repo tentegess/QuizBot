@@ -11,9 +11,6 @@ intents.message_content = True
 
 bot = commands.Bot(command_prefix='!', intents=intents)
 
-app = Flask(__name__)
-init_routes(app)
-
 
 # Ładowanie cogs
 @bot.event
@@ -31,6 +28,10 @@ async def on_ready():
 
 if __name__ == "__main__":
     load_dotenv()
+
+    app = Flask(__name__)
+    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
+    init_routes(app)
 
     def run_flask():
         app.run(host='0.0.0.0', port=5000)
