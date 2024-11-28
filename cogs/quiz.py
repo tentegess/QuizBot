@@ -32,7 +32,7 @@ class QuizCog(commands.Cog):
             await ctx.response.send_message("Brak skonfigurowanego quizu dla tego serwera.", ephemeral=True)
             return
 
-        join_view = JoinQuizView(timeout=5)
+        join_view = JoinQuizView(timeout=10)
         end_time = datetime.now(timezone.utc) + timedelta(seconds=join_view.timeout)
         embed = discord.Embed(
             title="Dołącz do Quizu!",
@@ -56,7 +56,10 @@ class QuizCog(commands.Cog):
             await ctx.followup.send("Nikt nie dołączył do quizu.", ephemeral=True)
             return
 
-        game = QuizSession(quiz, ctx.channel, self, players=join_view.players, message=message)
+        game = QuizSession(quiz, ctx.channel, self, players=join_view.players, message=message,
+                           player_threads=join_view.player_threads,
+                           correct_answer_display_time=5,
+                           scoreboard_display_time=5)
         self.active_games[game_key] = game
         await game.start(ctx)
 

@@ -9,6 +9,7 @@ class JoinQuizView(View):
         super().__init__()
         self.players = set()
         self.timeout = timeout
+        self.player_threads = {}
 
     @discord.ui.button(label="Dołącz do quizu", style=discord.ButtonStyle.primary)
     async def join_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -18,7 +19,19 @@ class JoinQuizView(View):
             return
 
         self.players.add(user)
+
         await interaction.response.send_message("Dołączyłeś do quizu!", ephemeral=True)
+
+        thread = await interaction.channel.create_thread(
+            name=f"Quiz - {user.name}",
+            type=discord.ChannelType.private_thread,
+            invitable=False
+        )
+
+        await thread.add_user(user)
+        self.player_threads[user.id] = thread
+
+        await thread.send(f"Witaj {user.mention}! Dołączyłeś do quizu.")
 
         message = interaction.message
         embed = message.embeds[0]
