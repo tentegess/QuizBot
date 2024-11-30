@@ -5,33 +5,30 @@ from utils.get_quiz import get_quiz_for_guild
 from classes.quiz_session import QuizSession
 
 class JoinQuizView(View):
-    def __init__(self, timeout=10):
+    def __init__(self, timeout=10, send_private_messages=True):
         super().__init__()
         self.players = set()
         self.timeout = timeout
-        self.player_threads = {}
+        self.send_private_messages = send_private_messages
 
     @discord.ui.button(label="Dołącz do quizu", style=discord.ButtonStyle.primary)
     async def join_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         user = interaction.user
+        await interaction.response.defer()
         if user in self.players:
-            await interaction.response.send_message("Już dołączyłeś do quizu!", ephemeral=True)
+            if self.send_private_messages:
+                try:
+                    await user.send("Już dołączyłeś do quizu.")
+                except discord.Forbidden:
+                    pass
             return
 
         self.players.add(user)
-
-        await interaction.response.send_message("Dołączyłeś do quizu!", ephemeral=True)
-
-        thread = await interaction.channel.create_thread(
-            name=f"Quiz - {user.name}",
-            type=discord.ChannelType.private_thread,
-            invitable=False
-        )
-
-        await thread.add_user(user)
-        self.player_threads[user.id] = thread
-
-        await thread.send(f"Witaj {user.mention}! Dołączyłeś do quizu.")
+        if self.send_private_messages:
+            try:
+                await user.send("Dołączyłeś do quizu.")
+            except discord.Forbidden:
+                pass
 
         message = interaction.message
         embed = message.embeds[0]
@@ -42,4 +39,3 @@ class JoinQuizView(View):
             embed.add_field(name=field.name, value=field.value, inline=field.inline)
         embed.add_field(name="Uczestnicy:", value=player_names or "Brak", inline=False)
         await message.edit(embed=embed)
-

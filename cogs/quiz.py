@@ -57,7 +57,6 @@ class QuizCog(commands.Cog):
             return
 
         game = QuizSession(quiz, ctx.channel, self, players=join_view.players, message=message,
-                           player_threads=join_view.player_threads,
                            correct_answer_display_time=5,
                            scoreboard_display_time=5)
         self.active_games[game_key] = game

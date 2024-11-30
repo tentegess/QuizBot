@@ -7,7 +7,8 @@ import traceback
 from datetime import datetime, timedelta, timezone
 
 class QuizSession:
-    def __init__(self, quiz, channel, cog, players, message, player_threads, correct_answer_display_time=5, scoreboard_display_time=5):
+    def __init__(self, quiz, channel, cog, players, message, correct_answer_display_time=5, scoreboard_display_time=5
+                 , send_private_messages=True):
         self.quiz = quiz
         self.channel = channel
         self.cog = cog
@@ -21,17 +22,12 @@ class QuizSession:
 
         self.correct_answer_display_time = correct_answer_display_time
         self.scoreboard_display_time = scoreboard_display_time
-        self.player_threads = player_threads
+        self.send_private_messages = send_private_messages
 
     async def start(self, ctx):
-        await self.send_question(ctx)
+        await self.send_question()
 
-    async def send_question(self, ctx):
-
-        if self.current_view:
-            self.current_view.stop()
-            self.current_view = None
-
+    async def send_question(self):
         if self.current_question_index >= len(self.quiz.questions):
             await self.end_game()
             return
@@ -59,11 +55,11 @@ class QuizSession:
             self.message = await self.channel.send(embed=embed, view=view)
 
         self.answered_users.clear()
-        self.player_answers.clear()
 
-        self.question_task = asyncio.create_task(self.question_timer(ctx, question.time_limit))
+        self.question_task = asyncio.create_task(self.question_timer(question.time_limit))
 
-    async def question_timer(self, ctx, time_limit):
+
+    async def question_timer(self, time_limit):
         try:
             await asyncio.sleep(time_limit)
             for item in self.current_view.children:
@@ -75,109 +71,100 @@ class QuizSession:
         except Exception as e:
             print(f"Błąd w question_timer: {e}")
 
+    async def question_summary(self):
+        question = self.quiz.questions[self.current_question_index]
+        correct_index = question.correct_answer
+        correct_answer = question.answers[correct_index]
+
+        answer_view = discord.ui.View()
+
+        for idx, answer in enumerate(question.answers):
+            if idx == correct_index:
+                style = discord.ButtonStyle.green
+            else:
+                style = discord.ButtonStyle.danger
+
+            button = discord.ui.Button(label=answer, style=style, disabled=True)
+            answer_view.add_item(button)
+
+        correct_answer_embed = discord.Embed(
+            title=f"Poprawna odpowiedź na pytanie {self.current_question_index + 1}",
+            description=f"Poprawna odpowiedź: {correct_answer}"
+        )
+        await self.message.edit(embed=correct_answer_embed, view=answer_view)
+
+        await asyncio.sleep(self.correct_answer_display_time)
+
+        if self.current_question_index + 1 >= len(self.quiz.questions):
+            await self.end_game()
+        else:
+            await self.show_scoreboard(next_question_in=self.scoreboard_display_time)
+            await asyncio.sleep(self.scoreboard_display_time)
+            self.current_question_index += 1
+            await self.send_question()
 
     def create_answer_callback(self, selected_index):
         async def callback(interaction):
             user = interaction.user
-            thread = self.player_threads.get(user.id)
 
             if user not in self.players:
                 await interaction.response.send_message("Nie jesteś uczestnikiem tego quizu.", ephemeral=True)
                 return
 
             if user.id in self.answered_users:
-                await thread.send("Już odpowiedziałeś na to pytanie.")
+                await interaction.response.defer()
+                await self.send_mess(user, "Już odpowiedziałeś na to pytanie")
                 return
 
             await interaction.response.defer()
 
             self.answered_users.add(user.id)
-            self.player_answers[user.id] = selected_index
+
             correct_index = self.quiz.questions[self.current_question_index].correct_answer
 
-            if user.id not in self.scores:
-                self.scores[user.id] = 0
+            if user not in self.scores:
+                self.scores[user] = 0
 
             if selected_index == correct_index:
-                self.scores[user.id] += 1
-                if thread:
-                    await thread.send("Poprawna odpowiedź!")
+                self.scores[user] += 1
+                await self.send_mess(user, "Poprawna odpowiedź")
             else:
-                if thread:
-                    await thread.send("Błędna odpowiedź.")
+                await self.send_mess(user, "Błędna odpowiedź")
 
             if len(self.answered_users) >= len(self.players):
                 self.question_task.cancel()
-                if self.current_view:
-                    self.current_view.stop()
-                    self.current_view = None
                 await self.question_summary()
-
 
         return callback
 
-    async def question_summary(self):
-        question = self.quiz.questions[self.current_question_index]
-        correct_index = question.correct_answer
-        correct_answer = question.answers[correct_index]
+    async def send_mess(self, user, desc):
+        if self.send_private_messages:
+            try:
+                await user.send(desc)
+            except discord.Forbidden:
+                pass
 
-        correct_answer_embed = discord.Embed(
-            title=f"Poprawna odpowiedź na pytanie {self.current_question_index + 1}",
-            description=f"Poprawna odpowiedź: {correct_answer}"
-        )
-        await self.message.edit(embed=correct_answer_embed, view=None)
-        if self.current_view:
-            self.current_view.stop()
-            self.current_view = None
-
-        await asyncio.sleep(self.correct_answer_display_time)
-
+    async def show_scoreboard(self, final=False, next_question_in=None):
         leaderboard = sorted(self.scores.items(), key=lambda x: x[1], reverse=True)
-        scores_text = ""
-        for user_id, score in leaderboard:
-            user = self.channel.guild.get_member(user_id)
-            if user is None:
-                try:
-                    user = await self.cog.bot.fetch_user(user_id)
-                except discord.NotFound:
-                    user = None
-            if user is not None:
-                scores_text += f"{user.name}: {score} punktów\n"
-            else:
-                scores_text += f"Użytkownik ID {user_id}: {score} punktów\n"
+        scores_text = "\n".join([f"{user.name}: {score} punktów" for user, score in leaderboard])
+
+        title = "Aktualne wyniki" if not final else "Koniec gry! Ostateczne wyniki"
 
         scoreboard_embed = discord.Embed(
-            title="Aktualne wyniki",
+            title=title,
             description=scores_text
         )
+
+        if next_question_in is not None:
+            end_time = datetime.now(timezone.utc) + timedelta(seconds=next_question_in)
+            scoreboard_embed.add_field(name="Następne pytanie ", value=f"<t:{int(end_time.timestamp())}:R>")
+
         await self.message.edit(embed=scoreboard_embed, view=None)
 
-        await asyncio.sleep(self.scoreboard_display_time)
 
-        self.current_question_index += 1
-        await self.send_question(self.message)
 
     async def end_game(self):
-        leaderboard = sorted(self.scores.items(), key=lambda x: x[1], reverse=True)
-        description = ""
-        for user_id, score in leaderboard:
-            user = self.channel.guild.get_member(user_id)
-            if user is None:
-                try:
-                    user = await self.cog.bot.fetch_user(user_id)
-                except discord.NotFound:
-                    user = None
-            if user is not None:
-                description += f"{user.name}: {score} punktów\n"
-            else:
-                description += f"Użytkownik ID {user_id}: {score} punktów\n"
-
-        embed = discord.Embed(title="Koniec gry!", description=description)
-        await self.message.edit(embed=embed, view=None)
-
-        for thread in self.player_threads.values():
-            await thread.delete()
-        self.player_threads.clear()
+        await self.show_scoreboard(final=True)
 
         game_key = (self.channel.guild.id, self.channel.id)
         del self.cog.active_games[game_key]
