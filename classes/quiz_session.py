@@ -24,7 +24,7 @@ class QuizSession:
         self.scoreboard_display_time = scoreboard_display_time
         self.send_private_messages = send_private_messages
 
-    async def start(self, ctx):
+    async def start(self):
         await self.send_question()
 
     async def send_question(self):
@@ -50,7 +50,9 @@ class QuizSession:
         self.current_view = view
 
         if self.message:
-            await self.message.edit(embed=embed, view=view)
+            success = await self.safe_message_edit(embed=embed, view=view)
+            if not success:
+                return
         else:
             self.message = await self.channel.send(embed=embed, view=view)
 
@@ -64,7 +66,7 @@ class QuizSession:
             await asyncio.sleep(time_limit)
             for item in self.current_view.children:
                 item.disabled = True
-            await self.message.edit(view=self.current_view)
+            #await self.message.edit(view=self.current_view)
             await self.question_summary()
         except asyncio.CancelledError:
             pass
@@ -91,7 +93,9 @@ class QuizSession:
             title=f"Poprawna odpowiedź na pytanie {self.current_question_index + 1}",
             description=f"Poprawna odpowiedź: {correct_answer}"
         )
-        await self.message.edit(embed=correct_answer_embed, view=answer_view)
+        success = await self.safe_message_edit(embed=correct_answer_embed, view=answer_view)
+        if not success:
+            return
 
         await asyncio.sleep(self.correct_answer_display_time)
 
@@ -159,9 +163,35 @@ class QuizSession:
             end_time = datetime.now(timezone.utc) + timedelta(seconds=next_question_in)
             scoreboard_embed.add_field(name="Następne pytanie ", value=f"<t:{int(end_time.timestamp())}:R>")
 
-        await self.message.edit(embed=scoreboard_embed, view=None)
+        success = await self.safe_message_edit(embed=scoreboard_embed, view=None)
+        if not success:
+            return
 
+    async def safe_message_edit(self, embed=None, view=None):
+        try:
+            await self.message.edit(embed=embed, view=view)
+        except discord.NotFound:
+            await self.game_del()
+            return False
+        except discord.HTTPException as e:
+            print(f"Błąd podczas edycji wiadomości: {e}")
+            return False
+        return True
 
+    async def game_del(self):
+        view = discord.ui.View()
+        embed = discord.Embed(
+            title=f"Gra przerwana",
+            description="Quiz został zakończony, ponieważ wiadomość z quizem została usunięta."
+        )
+
+        await self.channel.send(embed=embed, view=view)
+
+        if hasattr(self, 'question_task') and not self.question_task.done():
+            self.question_task.cancel()
+
+        game_key = (self.channel.guild.id, self.channel.id)
+        del self.cog.active_games[game_key]
 
     async def end_game(self):
         await self.show_scoreboard(final=True)

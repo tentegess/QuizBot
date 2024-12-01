@@ -5,11 +5,15 @@ from utils.get_quiz import get_quiz_for_guild
 from classes.quiz_session import QuizSession
 
 class JoinQuizView(View):
-    def __init__(self, timeout=10, send_private_messages=True):
+    def __init__(self, cog, game_key, timeout=10, send_private_messages=True):
         super().__init__()
         self.players = set()
         self.timeout = timeout
         self.send_private_messages = send_private_messages
+
+        self.cog = cog
+        self.game_key = game_key
+        self.message = None
 
     @discord.ui.button(label="Dołącz do quizu", style=discord.ButtonStyle.primary)
     async def join_button(self, interaction: discord.Interaction, button: discord.ui.Button):
