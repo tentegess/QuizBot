@@ -19,6 +19,7 @@ class QuizSession:
         self.message = message
         self.answered_users = set()
         self.current_view = None
+        self.game_ended = False
 
         self.correct_answer_display_time = correct_answer_display_time
         self.scoreboard_display_time = scoreboard_display_time
@@ -179,6 +180,12 @@ class QuizSession:
         return True
 
     async def game_del(self):
+        if self.game_ended:
+            return
+        self.game_ended = True
+        if hasattr(self, 'question_task') and not self.question_task.done():
+            self.question_task.cancel()
+
         view = discord.ui.View()
         embed = discord.Embed(
             title=f"Gra przerwana",
@@ -187,14 +194,16 @@ class QuizSession:
 
         await self.channel.send(embed=embed, view=view)
 
-        if hasattr(self, 'question_task') and not self.question_task.done():
-            self.question_task.cancel()
-
         game_key = (self.channel.guild.id, self.channel.id)
-        del self.cog.active_games[game_key]
+        if game_key in self.cog.active_games:
+            del self.cog.active_games[game_key]
 
     async def end_game(self):
+        if self.game_ended:
+            return
+        self.game_ended = True
         await self.show_scoreboard(final=True)
 
         game_key = (self.channel.guild.id, self.channel.id)
-        del self.cog.active_games[game_key]
+        if game_key in self.cog.active_games:
+            del self.cog.active_games[game_key]

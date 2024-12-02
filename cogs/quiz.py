@@ -36,20 +36,20 @@ class QuizCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message_edit(self, before, after):
-        if not before.embeds or after.embeds:
-            return
+        if before.embeds and not after.embeds:
+            game_key = (after.guild.id, after.channel.id)
 
-        game_key = (after.guild.id, after.channel.id)
+            if game_key in self.active_games:
+                game = self.active_games[game_key]
+                if game.message.id == after.id and len(after.embeds) == 0:
+                    await game.message.delete()
 
-        if game_key in self.active_games:
-            game = self.active_games[game_key]
-            if game.message.id == after.id and len(after.embeds) == 0:
-                await game.message.delete()
+            if game_key in self.active_join_views:
+                join_view = self.active_join_views[game_key]
+                if join_view.message.id == after.id and len(after.embeds) == 0:
+                    await join_view.message.delete()
 
-        if game_key in self.active_join_views:
-            join_view = self.active_join_views[game_key]
-            if join_view.message.id == after.id and len(after.embeds) == 0:
-                await join_view.message.delete()
+
 
     @app_commands.command(name="startquiz", description="Rozpocznij quiz")
     async def start_quiz(self, ctx: discord.Interaction):
