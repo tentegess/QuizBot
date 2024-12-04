@@ -7,7 +7,7 @@ import traceback
 from datetime import datetime, timedelta, timezone
 
 class QuizSession:
-    def __init__(self, quiz, channel, cog, players, message, correct_answer_display_time=5, scoreboard_display_time=5
+    def __init__(self, quiz, channel, cog, players, message, game_starter, correct_answer_display_time=5, scoreboard_display_time=5
                  , send_private_messages=True):
         self.quiz = quiz
         self.channel = channel
@@ -19,11 +19,14 @@ class QuizSession:
         self.message = message
         self.answered_users = set()
         self.current_view = None
-        self.game_ended = False
+        self.game_starter = game_starter
 
         self.correct_answer_display_time = correct_answer_display_time
         self.scoreboard_display_time = scoreboard_display_time
         self.send_private_messages = send_private_messages
+
+        self.is_processing_question = False
+        self.game_ended = False
 
     async def start(self):
         await self.send_question()
@@ -67,7 +70,6 @@ class QuizSession:
             await asyncio.sleep(time_limit)
             for item in self.current_view.children:
                 item.disabled = True
-            #await self.message.edit(view=self.current_view)
             await self.question_summary()
         except asyncio.CancelledError:
             pass
@@ -75,41 +77,56 @@ class QuizSession:
             print(f"Błąd w question_timer: {e}")
 
     async def question_summary(self):
-        question = self.quiz.questions[self.current_question_index]
-        correct_index = question.correct_answer
-        correct_answer = question.answers[correct_index]
-
-        answer_view = discord.ui.View()
-
-        for idx, answer in enumerate(question.answers):
-            if idx == correct_index:
-                style = discord.ButtonStyle.green
-            else:
-                style = discord.ButtonStyle.danger
-
-            button = discord.ui.Button(label=answer, style=style, disabled=True)
-            answer_view.add_item(button)
-
-        correct_answer_embed = discord.Embed(
-            title=f"Poprawna odpowiedź na pytanie {self.current_question_index + 1}",
-            description=f"Poprawna odpowiedź: {correct_answer}"
-        )
-        success = await self.safe_message_edit(embed=correct_answer_embed, view=answer_view)
-        if not success:
+        if self.game_ended:
             return
 
-        await asyncio.sleep(self.correct_answer_display_time)
+        if self.is_processing_question:
+            return
+        self.is_processing_question = True
+        try:
+            question = self.quiz.questions[self.current_question_index]
+            correct_index = question.correct_answer
+            correct_answer = question.answers[correct_index]
 
-        if self.current_question_index + 1 >= len(self.quiz.questions):
-            await self.end_game()
-        else:
-            await self.show_scoreboard(next_question_in=self.scoreboard_display_time)
-            await asyncio.sleep(self.scoreboard_display_time)
-            self.current_question_index += 1
-            await self.send_question()
+            answer_view = discord.ui.View()
+
+            for idx, answer in enumerate(question.answers):
+                if idx == correct_index:
+                    style = discord.ButtonStyle.green
+                else:
+                    style = discord.ButtonStyle.danger
+
+                button = discord.ui.Button(label=answer, style=style, disabled=True)
+                answer_view.add_item(button)
+
+            correct_answer_embed = discord.Embed(
+                title=f"Poprawna odpowiedź na pytanie {self.current_question_index + 1}",
+                description=f"Poprawna odpowiedź: {correct_answer}"
+            )
+            success = await self.safe_message_edit(embed=correct_answer_embed, view=answer_view)
+            if not success:
+                return
+
+            await asyncio.sleep(self.correct_answer_display_time)
+            if self.game_ended:
+                return
+            if self.current_question_index + 1 >= len(self.quiz.questions):
+                await self.end_game()
+            else:
+                await self.show_scoreboard(next_question_in=self.scoreboard_display_time)
+                await asyncio.sleep(self.scoreboard_display_time)
+                self.current_question_index += 1
+                await self.send_question()
+        finally:
+            self.is_processing_question = False
 
     def create_answer_callback(self, selected_index):
         async def callback(interaction):
+            async def callback_mess(text):
+                if self.send_private_messages:
+                    await interaction.response.send_message(text, ephemeral=True)
+                else:
+                    await interaction.response.defer()
             user = interaction.user
 
             if user not in self.players:
@@ -117,11 +134,8 @@ class QuizSession:
                 return
 
             if user.id in self.answered_users:
-                await interaction.response.defer()
-                await self.send_mess(user, "Już odpowiedziałeś na to pytanie")
+                await callback_mess("Już odpowiedziałeś na to pytanie")
                 return
-
-            await interaction.response.defer()
 
             self.answered_users.add(user.id)
 
@@ -132,9 +146,9 @@ class QuizSession:
 
             if selected_index == correct_index:
                 self.scores[user] += 1
-                await self.send_mess(user, "Poprawna odpowiedź")
+                await callback_mess("Poprawna odpowiedź")
             else:
-                await self.send_mess(user, "Błędna odpowiedź")
+                await callback_mess("Błędna odpowiedź")
 
             if len(self.answered_users) >= len(self.players):
                 self.question_task.cancel()
@@ -143,11 +157,12 @@ class QuizSession:
         return callback
 
     async def send_mess(self, user, desc):
-        if self.send_private_messages:
-            try:
-                await user.send(desc)
-            except discord.Forbidden:
-                pass
+        pass
+        # if self.send_private_messages:
+        #     try:
+        #         await user.send(desc)
+        #     except discord.Forbidden:
+        #         pass
 
     async def show_scoreboard(self, final=False, next_question_in=None):
         leaderboard = sorted(self.scores.items(), key=lambda x: x[1], reverse=True)
@@ -185,6 +200,7 @@ class QuizSession:
         self.game_ended = True
         if hasattr(self, 'question_task') and not self.question_task.done():
             self.question_task.cancel()
+        self.question_task = None
 
         view = discord.ui.View()
         embed = discord.Embed(
@@ -203,6 +219,10 @@ class QuizSession:
             return
         self.game_ended = True
         await self.show_scoreboard(final=True)
+
+        if hasattr(self, 'question_task') and not self.question_task.done():
+            self.question_task.cancel()
+        self.question_task = None
 
         game_key = (self.channel.guild.id, self.channel.id)
         if game_key in self.cog.active_games:
