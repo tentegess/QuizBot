@@ -90,7 +90,11 @@ class QuizCog(commands.Cog):
             return
 
         if not join_view.players:
-            await ctx.followup.send("Nikt nie dołączył do quizu.", ephemeral=True)
+            embed = discord.Embed(
+                title="Nikt nie dołączył do quizu",
+                color=discord.Color.red()
+            )
+            await message.edit(embed=embed, view=None)
             return
 
         if game_key in self.active_join_views:
@@ -134,7 +138,7 @@ class QuizCog(commands.Cog):
                     title="Koniec gry!",
                     description="Gra została anulowana"
                 )
-                await join_view.message.edit(embed=embed)
+                await join_view.message.edit(embed=embed, view=None)
             join_view.stop()
 
             await ctx.response.send_message("Proces dołączania do gry został anulowany.", ephemeral=True)

@@ -21,14 +21,22 @@ class JoinQuizView(View):
         user = interaction.user
         if user in self.players:
             if self.send_private_messages:
-                await interaction.response.send_message("Już dołączyłeś do quizu", ephemeral=True)
+                embed = discord.Embed(
+                    title="Już dołączyłeś do quizu",
+                    color=discord.Color.red()
+                )
+                await interaction.response.send_message(embed=embed, ephemeral=True)
             else:
                 await interaction.response.defer()
             return
 
         self.players.add(user)
         if self.send_private_messages:
-            await interaction.response.send_message("Dołączyłeś do quizu", ephemeral=True)
+            embed = discord.Embed(
+                title="Dołączyłeś do quizu",
+                color=discord.Color.green()
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
         else:
             await interaction.response.defer()
 

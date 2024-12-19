@@ -21,6 +21,9 @@ class QuizSession:
         self.current_view = None
         self.game_starter = game_starter
 
+        self.streaks = {player: 0 for player in self.players}
+        self.correct_count_for_question = 0
+
         self.correct_answer_display_time = correct_answer_display_time
         self.scoreboard_display_time = scoreboard_display_time
         self.send_private_messages = send_private_messages
@@ -32,12 +35,17 @@ class QuizSession:
         await self.send_question()
 
     async def send_question(self):
+        if self.game_ended:
+            return
+
         if self.current_question_index >= len(self.quiz.questions):
             await self.end_game()
             return
 
         question = self.quiz.questions[self.current_question_index]
         end_time = datetime.now(timezone.utc) + timedelta(seconds=question.time_limit)
+
+        self.correct_count_for_question = 0
 
         embed = discord.Embed(
             title=f"Pytanie {self.current_question_index + 1}",
@@ -122,19 +130,25 @@ class QuizSession:
 
     def create_answer_callback(self, selected_index):
         async def callback(interaction):
-            async def callback_mess(text):
+            async def callback_mess(embed):
                 if self.send_private_messages:
-                    await interaction.response.send_message(text, ephemeral=True)
+                    await interaction.response.send_message(embed=embed, ephemeral=True)
                 else:
                     await interaction.response.defer()
             user = interaction.user
 
             if user not in self.players:
-                await interaction.response.send_message("Nie jesteś uczestnikiem tego quizu.", ephemeral=True)
+                embed = discord.Embed(
+                    title="Nie jesteś uczestnikiem tego quizu."
+                )
+                await interaction.response.send_message(embed=embed, ephemeral=True)
                 return
 
             if user.id in self.answered_users:
-                await callback_mess("Już odpowiedziałeś na to pytanie")
+                embed = discord.Embed(
+                    title="Już odpowiedziałeś na to pytanie"
+                )
+                await callback_mess(embed)
                 return
 
             self.answered_users.add(user.id)
@@ -145,10 +159,35 @@ class QuizSession:
                 self.scores[user] = 0
 
             if selected_index == correct_index:
-                self.scores[user] += 1
-                await callback_mess("Poprawna odpowiedź")
+                base_points = max(1000 - (self.correct_count_for_question * 100), 500)
+                self.correct_count_for_question += 1
+                streak = self.streaks[user]
+                multiplier = 1.0 + (streak * 0.1)
+
+                self.scores[user] += int(base_points*multiplier)
+                self.streaks[user] += 1
+
+                embed = discord.Embed(
+                    title="Poprawna odpowiedź!",
+                    description=f"Zdobywasz {int(base_points*multiplier)} punktów!",
+                    color=discord.Color.green()
+                )
+                embed.add_field(name="Aktualny wynik", value=str(self.scores[user]), inline=True)
+                embed.add_field(name="Streak", value=str(self.streaks[user]), inline=True)
+
+                await callback_mess(embed)
             else:
-                await callback_mess("Błędna odpowiedź")
+                self.streaks[user] = 0
+                streak = 0
+
+                embed = discord.Embed(
+                    title="Błędna odpowiedź!",
+                    description="Niestety, nie zdobywasz punktów.",
+                    color=discord.Color.red()
+                )
+                embed.add_field(name="Aktualny wynik", value=str(self.scores[user]), inline=True)
+                embed.add_field(name="Streak", value=str(streak), inline=True)
+                await callback_mess(embed)
 
             if len(self.answered_users) >= len(self.players):
                 self.question_task.cancel()
