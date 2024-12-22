@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Moja strona</title>
+</head>
+<body>
+    <h1>Zalogowano</h1>
+    <a href="/logout">
+        <button class="button">Logout</button>
+    </a>
+
+    <div>
+        {% for guild in guilds %}
+            <a href={{guild.url}}>
+                <div>
+                    <img src="{{guild.icon}}">
+                    <p><b>{{ guild.name }}</b></p>
+                </div>
+            </a>
+        {% endfor %}
+    </div>
+</body>
+</html>
