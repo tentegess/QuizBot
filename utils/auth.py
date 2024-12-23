@@ -1,6 +1,7 @@
 import os
 from datetime import datetime, timezone, timedelta
 import aiohttp
+from bson import ObjectId
 from dotenv import load_dotenv
 from config.config import session_collection
 from model.session_model import SessionModel
@@ -32,15 +33,23 @@ class Oauth:
         async with self.session.get(self.discord_api_url + '/users/@me/guilds', headers=header) as response:
             return await response.json()
 
-    async def get_token_response(self, code):
-        data = {
-            'client_id': Oauth.client_id,
-            'client_secret': Oauth.client_secret,
-            'grant_type': 'authorization_code',
-            'code': code,
-            'redirect_uri': Oauth.redirect_uri,
-            'scope': Oauth.scope
-        }
+    async def get_token_response(self, code=None, refresh_token=None):
+        if not refresh_token:
+            data = {
+                'client_id': Oauth.client_id,
+                'client_secret': Oauth.client_secret,
+                'grant_type': 'authorization_code',
+                'code': code,
+                'redirect_uri': Oauth.redirect_uri,
+                'scope': Oauth.scope
+            }
+        else:
+            data = {
+                'client_id': Oauth.client_id,
+                'client_secret': Oauth.client_secret,
+                'grant_type': 'refresh_token',
+                'refresh_token': refresh_token
+            }
 
         response = await self.session.post(self.discord_api_url + '/oauth2/token', data=data)
         json_response = await response.json()
@@ -64,25 +73,19 @@ class Oauth:
             response.raise_for_status()
 
     async def reload(self, session_id, refresh_token):
-        data = {
-            'client_id': self.client_id,
-            'client_secret': self.client_secret,
-            'grant_type': 'refresh_token',
-            'refresh_token': refresh_token
-        }
-        response = await  self.get_token_response(data)
+        response = await self.get_token_response(refresh_token=refresh_token)
         if not response:
             return False
 
         token, refresh_token, expires_in = response
-        session = SessionModel(
-            token=token,
-            refresh_token=refresh_token,
-            token_expires_at=datetime.now(timezone.utc) + timedelta(seconds=expires_in),
-        )
-
         session_collection.update_one(
-            {"_id": session_id},
-            {"$set": session.model_dump()},
+            {"_id": ObjectId(session_id)},
+            {"$set": {
+                'token': token,
+                'refresh_token': refresh_token,
+                'token_expires_at': datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+            }},
         )
         return True
+
+api = Oauth()

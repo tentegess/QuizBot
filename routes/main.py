@@ -3,18 +3,21 @@ from http.client import responses
 import discord
 from bson import ObjectId
 from dotenv import load_dotenv
-from fastapi import APIRouter, Request, HTTPException, Cookie
+from fastapi import APIRouter, Request, HTTPException, Cookie, status
+from fastapi.params import Depends
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse
+from requests import session
+
 from model.session_model import SessionModel
-from utils.auth import Oauth
+from utils.auth import Oauth, api
+from utils.validate_session import validate_session_without_data, validate_session_with_data
 from discord.ext.ipc import Client
 from config.config import session_collection
 
 
 load_dotenv()
 main_router = APIRouter()
-api = Oauth()
 templates = Jinja2Templates(directory="templates")
 print("Main routes initialized")
 ipc = Client(secret_key="test")
@@ -72,34 +75,19 @@ async def login(code: str):
     return response
 
 @main_router.get("/guilds")
-async def guilds(request: Request):
-    session_id = request.cookies.get("session_id")
-    session = session_collection.find_one({"_id": ObjectId(session_id)})
-    if not session_id or not session:
-        raise HTTPException(status_code=401, detail="brak uprawnień")
-
+async def guilds(request: Request, data: dict = Depends(validate_session_with_data)):
+    session = data['session']
+    user = data['user']
     token = session.get("token")
-    user = await api.get_user(token)
-
-    if datetime.now() > session.get("token_expires_at") or user.get("code") == 0:
-        if await api.reload(session_id, session.get("refresh_token")):
-            return RedirectResponse(url="/guilds")
-        else:
-            return RedirectResponse(url="/logout")
-
-    if "id" not in user:
-        return RedirectResponse(url="/logout")
     user_guilds = await api.get_guilds(token)
-    perms = []
-
     bot_guilds = await ipc.request("bot_guilds")
+    perms = []
 
     for guild in user_guilds:
         if guild["id"] in bot_guilds.response["data"]:
             guild["url"] = "/server/" + str(guild["id"])
         else:
             guild["url"] = f"https://discord.com/oauth2/authorize?client_id=1308514751026036847&guild_id={guild['id']}"
-
 
         guild["icon"] = f"https://cdn.discordapp.com/icons/{guild['id']}/{guild['icon']}"
         is_admin = discord.Permissions(int(guild["permissions"])).administrator
@@ -115,7 +103,7 @@ async def guilds(request: Request):
         })
 
 @main_router.get("/server/{guild_id}")
-async def server(request: Request, guild_id: int):
+async def server(request: Request, guild_id: int, data: dict = Depends(validate_session_without_data)):
     session_id = request.cookies.get("session_id")
     if not session_id or not session_collection.find_one({"_id": ObjectId(session_id)}):
         raise HTTPException(status_code=401, detail="brak uprawnień")

@@ -1,14 +1,16 @@
+import os
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
+from dotenv import load_dotenv
 
-uri = "mongodb+srv://sa:2oT4FNO4wyJCSDCb@quizbot.pf6s9.mongodb.net/?retryWrites=true&w=majority&appName=Quizbot"
+load_dotenv()
+uri = os.environ.get('DB_CONNECTION_STRING')
 
 # Create a new client and connect to the server
 client = MongoClient(uri, server_api=ServerApi('1'))
 
 db = client.Quizbot
 session_collection = db['Sessions']
-
 
 # Send a ping to confirm a successful connection
 try:
