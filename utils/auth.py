@@ -4,7 +4,6 @@ import aiohttp
 from bson import ObjectId
 from dotenv import load_dotenv
 from config.config import session_collection
-from model.session_model import SessionModel
 
 load_dotenv()
 
@@ -78,7 +77,7 @@ class Oauth:
             return False
 
         token, refresh_token, expires_in = response
-        session_collection.update_one(
+        await session_collection.update_one(
             {"_id": ObjectId(session_id)},
             {"$set": {
                 'token': token,

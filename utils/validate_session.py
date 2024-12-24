@@ -10,7 +10,7 @@ async def validate_session(request: Request, return_data: bool):
         raise HTTPException(status_code=status.HTTP_307_TEMPORARY_REDIRECT,
                             headers={'Location': '/'})
 
-    session = session_collection.find_one({"_id": ObjectId(session_id)})
+    session = await session_collection.find_one({"_id": ObjectId(session_id)})
     if not session:
         raise HTTPException(status_code=status.HTTP_307_TEMPORARY_REDIRECT,
             headers={'Location': '/'})

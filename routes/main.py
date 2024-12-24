@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta, timezone
 from http.client import responses
 import discord
@@ -8,7 +9,6 @@ from fastapi.params import Depends
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse
 from requests import session
-
 from model.session_model import SessionModel
 from utils.auth import Oauth, api
 from utils.validate_session import validate_session_without_data, validate_session_with_data
@@ -30,7 +30,8 @@ async def on_startup():
 @main_router.get("/")
 async def home(request: Request):
     session_id = request.cookies.get("session_id")
-    if session_id and session_collection.find_one({"_id": ObjectId(session_id)}):
+    session = await session_collection.find_one({"_id": ObjectId(session_id)})
+    if session_id and session:
         return RedirectResponse(url="/guilds")
 
     guild_count = await ipc.request("guild_count")
@@ -58,7 +59,7 @@ async def login(code: str):
         token_expires_at=token_expires_at,
         user_id=user_id
     )
-    result = session_collection.update_one(
+    result = await session_collection.update_one(
         {"user_id": int(user_id)},
         {"$set": session.model_dump()},
         upsert=True
@@ -67,7 +68,7 @@ async def login(code: str):
     if result.upserted_id:
         doc_id = result.upserted_id
     else:
-        session_doc = session_collection.find_one({"user_id": int(user_id)})
+        session_doc = await session_collection.find_one({"user_id": int(user_id)})
         doc_id = session_doc["_id"]
 
     response = RedirectResponse(url="/guilds")
@@ -105,7 +106,8 @@ async def guilds(request: Request, data: dict = Depends(validate_session_with_da
 @main_router.get("/server/{guild_id}")
 async def server(request: Request, guild_id: int, data: dict = Depends(validate_session_without_data)):
     session_id = request.cookies.get("session_id")
-    if not session_id or not session_collection.find_one({"_id": ObjectId(session_id)}):
+    session = await session_collection.find_one({"_id": ObjectId(session_id)})
+    if not session_id or not session:
         raise HTTPException(status_code=401, detail="brak uprawnień")
 
     stats = await ipc.request("guild_stats", guild_id=guild_id)
@@ -121,7 +123,7 @@ async def server(request: Request, guild_id: int, data: dict = Depends(validate_
 
 @main_router.get("/logout")
 async def logout(session_id: str = Cookie(None)):
-    session = session_collection.find_one({"_id": ObjectId(session_id)})
+    session = await session_collection.find_one({"_id": ObjectId(session_id)})
     if not session_id or not session:
         raise HTTPException(status_code=401, detail="brak uprawnień")
 
@@ -130,7 +132,7 @@ async def logout(session_id: str = Cookie(None)):
     response = RedirectResponse("/")
     response.delete_cookie(key="session_id", httponly=True)
 
-    session_collection.delete_one({"_id": ObjectId(session_id)})
+    await session_collection.delete_one({"_id": ObjectId(session_id)})
     await api.revoke_token(token)
 
     return response
