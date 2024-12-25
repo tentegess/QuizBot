@@ -1,4 +1,5 @@
 .env
+discord.log
 __pycache__/
 venv/
 .idea/

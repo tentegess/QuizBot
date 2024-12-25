@@ -1,3 +1,4 @@
+import logging
 from discord.ext.ipc import Server, ClientPayload
 from discord.ext import commands
 import discord
@@ -5,6 +6,7 @@ import os
 from dotenv import load_dotenv
 from config.config import db
 import asyncio
+from bot_utils.utils import set_logger
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -17,6 +19,10 @@ class BotClass(commands.Bot):
         super().__init__(command_prefix="!", intents=intents)
         self.ipc2 = Server(self, secret_key='test')
         self.db = db
+
+    def log(self, message, name, level, **kwargs):
+        self.logger.name = name
+        self.logger.log(level=level, msg=message, **kwargs)
 
     async def on_ready(self):
         print(f'Zalogowano jako {self.user.name}')
@@ -68,4 +74,5 @@ class BotClass(commands.Bot):
 if __name__ == "__main__":
     load_dotenv()
     bot = BotClass()
-    bot.run(os.environ.get('DC_TOKEN'))
+    bot.logger, console_handler = set_logger()
+    bot.run(os.environ.get('DC_TOKEN'), log_handler=console_handler, log_level=logging.DEBUG)
