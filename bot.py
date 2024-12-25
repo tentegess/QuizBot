@@ -3,16 +3,20 @@ from discord.ext import commands
 import discord
 import os
 from dotenv import load_dotenv
+from config.config import db
 import asyncio
 
 intents = discord.Intents.default()
 intents.message_content = True
+
+from bot_utils.utils import guild_only
 
 
 class BotClass(commands.Bot):
     def __init__(self):
         super().__init__(command_prefix="!", intents=intents)
         self.ipc2 = Server(self, secret_key='test')
+        self.db = db
 
     async def on_ready(self):
         print(f'Zalogowano jako {self.user.name}')
@@ -30,7 +34,6 @@ class BotClass(commands.Bot):
         except Exception as e:
             print(f"Błąd podczas synchronizacji komend: {e}")
 
-        print('Wszystkie cogs zostały załadowane.')
         asyncio.create_task(self.ipc2.start())
 
     @Server.route()

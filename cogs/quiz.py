@@ -1,12 +1,12 @@
-import traceback
 import discord
 from discord.ext import commands
 from discord import app_commands
-from utils.get_quiz import get_quiz_for_guild
-from classes.quiz_session import QuizSession
+from bot_utils.get_quiz import get_quiz_for_guild
+from bot_modules.quiz_session import QuizSession
 import asyncio
-from classes.join_view import JoinQuizView
+from bot_modules.join_view import JoinQuizView
 from datetime import datetime, timedelta, timezone
+from bot_utils.utils import guild_only
 
 class QuizCog(commands.Cog):
     def __init__(self, bot):
@@ -55,9 +55,8 @@ class QuizCog(commands.Cog):
                 if join_view.message.id == after.id and len(after.embeds) == 0:
                     await join_view.message.delete()
 
-
-
     @app_commands.command(name="startquiz", description="Rozpocznij quiz")
+    @guild_only()
     async def start_quiz(self, ctx: discord.Interaction):
         guild_id = ctx.guild.id
         channel_id = ctx.channel.id
@@ -108,6 +107,7 @@ class QuizCog(commands.Cog):
         await game.start()
 
     @app_commands.command(name="endquiz", description="Zakończ aktualną grę")
+    @guild_only()
     async def end_quiz(self, ctx: discord.Interaction):
         guild_id = ctx.guild.id
         channel_id = ctx.channel.id
@@ -148,6 +148,7 @@ class QuizCog(commands.Cog):
                                             ephemeral=True)
 
     @app_commands.command(name="skipquestion", description="Pomiń aktualne pytanie")
+    @guild_only()
     async def skip_question(self, ctx: discord.Interaction):
         guild_id = ctx.guild.id
         channel_id = ctx.channel.id

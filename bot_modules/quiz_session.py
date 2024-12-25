@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from utils.get_quiz import get_quiz_for_guild
+from bot_utils.get_quiz import get_quiz_for_guild
 import asyncio
 import traceback
 from datetime import datetime, timedelta, timezone

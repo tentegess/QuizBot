@@ -1,4 +1,4 @@
-from utils.models import Quiz, Question
+from bot_utils.models import Quiz, Question
 
 def get_quiz_for_guild(guild_id):
     questions = [

@@ -1,8 +1,8 @@
 import discord
 from discord.ui import Button, View
 import asyncio
-from utils.get_quiz import get_quiz_for_guild
-from classes.quiz_session import QuizSession
+from bot_utils.get_quiz import get_quiz_for_guild
+from bot_modules.quiz_session import QuizSession
 
 class JoinQuizView(View):
     def __init__(self, cog, game_key,gamestarter, timeout=10, send_private_messages=True):
