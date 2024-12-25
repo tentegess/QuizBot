@@ -12,13 +12,17 @@ def guild_only():
 def set_logger():
     logger = logging.getLogger('discord')
     logger.setLevel(logging.DEBUG)
+    log_formatter = logging.Formatter(fmt="[{asctime}] [{levelname:<8}] {name}: {message}", datefmt="%Y-%m-%d %H:%M:%S",
+                                      style="{")
 
     file_handler = logging.FileHandler(filename="./discord.log", encoding="utf-8", mode='w')
     file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(log_formatter)
     logger.addHandler(file_handler)
 
-    console_hanlder = logging.StreamHandler()
-    console_hanlder.setLevel(logging.INFO)
-    logger.addHandler(console_hanlder)
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(log_formatter)
+    logger.addHandler(console_handler)
 
-    return logger, console_hanlder
+    return logger, console_handler
