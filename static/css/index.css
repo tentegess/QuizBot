@@ -1,0 +1,32 @@
+.btn-dark-c{
+    background-color: #2E3034;
+}
+
+.btn-dark-c:hover{
+    background-color: #35373b;
+}
+
+.img-h{
+    height: 100px;
+    transition: transform 0.5s ease;
+}
+
+.btn-dark-c:hover .img-h {
+    animation: rotate-speed 2s cubic-bezier(0.25, 0.1, 0.25, 1) infinite;
+}
+
+@keyframes rotate-speed {
+    0% {
+        transform: rotate(0deg);
+    }
+    50% {
+        transform: rotate(180deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.line-h{
+    height: 80px;
+}
