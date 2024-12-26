@@ -92,8 +92,11 @@ async def guilds(request: Request, data: dict = Depends(validate_session_with_da
 
         guild["icon"] = f"https://cdn.discordapp.com/icons/{guild['id']}/{guild['icon']}"
         is_admin = discord.Permissions(int(guild["permissions"])).administrator
+        perms.append(guild)
         if is_admin or guild["owner"]:
             perms.append(guild)
+
+    perms *= 100
 
     return templates.TemplateResponse(
         "guilds.html",

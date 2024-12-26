@@ -2,3 +2,30 @@ body {
     background-color: #35393f;
 }
 
+.img-animation{
+    transition: transform 0.5s ease;
+}
+
+.btn-animation:hover .img-animation {
+    animation: rotate-speed 2s cubic-bezier(0.25, 0.1, 0.25, 1) infinite;
+}
+
+.nav-c{
+    background-color: #2E3034;
+}
+
+@keyframes rotate-speed {
+    0% {
+        transform: rotate(0deg);
+    }
+    50% {
+        transform: rotate(180deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.logout-btn:hover i{
+    color: red !important;  /* Utrzymuje biały kolor ikony */
+}

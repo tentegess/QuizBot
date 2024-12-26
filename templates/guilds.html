@@ -1,25 +1,29 @@
-<!DOCTYPE html>
-<html lang="pl">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Moja strona</title>
-</head>
-<body>
-    <h1>Zalogowano</h1>
-    <a href="/logout">
-        <button class="button">Logout</button>
-    </a>
+{% extends "base.html" %}
 
-    <div>
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', path='css/guilds.css') }}">
+{% endblock %}
+
+{% block navbar %}
+    {% include "navbar.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row g-4">
         {% for guild in guilds %}
-            <a href={{guild.url}}>
-                <div>
-                    <img src="{{guild.icon}}">
-                    <p><b>{{ guild.name }}</b></p>
+        <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+            <a href="{{ guild.url }}" class="text-decoration-none guild-link position-relative d-block">
+                <div class="rounded-circle overflow-hidden position-relative guild-image-container">
+                    <img src="{{ guild.icon }}" class="img-fluid w-100 h-100 guild-image" alt="{{ guild.name }}">
+                    <div class="overlay d-flex align-items-center justify-content-center">
+                        <span class="text-white fw-bold">{{ guild.name }}</span>
+                    </div>
                 </div>
             </a>
+        </div>
         {% endfor %}
     </div>
+</div>
 </body>
-</html>
+{% endblock %}
