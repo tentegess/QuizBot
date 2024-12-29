@@ -10,6 +10,7 @@ class QuizModel(BaseModel):
     updated_at: datetime
     user_id: int
     questions: List[QuestionModel]
+    access_code: str = None
 
     class Config:
         arbitrary_types_allowed = True

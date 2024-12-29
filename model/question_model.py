@@ -7,6 +7,7 @@ class QuestionModel(BaseModel):
     question: str
     options: List[OptionModel]
     image_url: Optional[ObjectId]
+    time: int
 
     class Config:
         arbitrary_types_allowed = True

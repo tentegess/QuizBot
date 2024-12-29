@@ -17,8 +17,9 @@ from model.option_model import OptionModel
 from utils.auth import Oauth, api
 from utils.validate_session import validate_session_without_data, validate_session_with_data
 from utils.validate_quiz import validate_quiz_data
+from utils.generate_unique_id import get_unique_access_code
 from discord.ext.ipc import Client
-from config.config import session_collection, quiz_collection, db
+from config.config import session_collection, quiz_collection, db, question_collection
 import json
 from typing import List, Optional
 from motor.motor_asyncio import AsyncIOMotorGridFSBucket
@@ -98,7 +99,10 @@ async def guilds(request: Request, data: dict = Depends(validate_session_with_da
         else:
             guild["url"] = f"https://discord.com/oauth2/authorize?client_id=1308514751026036847&guild_id={guild['id']}"
 
-        guild["icon"] = f"https://cdn.discordapp.com/icons/{guild['id']}/{guild['icon']}"
+        if guild.get("icon"):
+            guild["icon"] = f"https://cdn.discordapp.com/icons/{guild['id']}/{guild['icon']}"
+        else:
+            guild["icon"] = "https://cdn.discordapp.com/embed/avatars/0.png"
         is_admin = discord.Permissions(int(guild["permissions"])).administrator
 
         if is_admin or guild["owner"]:
@@ -169,23 +173,25 @@ async def save_quiz(
         saved_question = QuestionModel(
             question=question['content'],
             options=options,
-            image_url=image_url
+            image_url=image_url,
+            time=question.get('time', 5)
         )
         saved_questions.append(saved_question)
+
+    access_code = await get_unique_access_code()
 
     quiz = QuizModel(
         title=title,
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
         user_id=int(user_id),
-        questions=saved_questions
+        questions=saved_questions,
+        access_code=access_code
     )
 
     quiz_dict = quiz.model_dump()
     quiz_id = await quiz_collection.insert_one(quiz_dict)
-
     return
-
 
 @main_router.get("/logout")
 async def logout(session_id: str = Cookie(None)):

@@ -49,10 +49,16 @@ function createQuestionCard() {
                         </span>
                     </div>
                 </div>
-                
-                <span class="btn color-m border-dark text-white mt-2 add-answer-btn clickable-icon">
-                    <i class="bi bi-plus"></i> Dodaj odpowiedź
-                </span>
+               
+                <div class="d-flex align-items-center mt-2">
+                    <span class="btn color-m border-dark text-white mt-2 add-answer-btn clickable-icon">
+                        <i class="bi bi-plus"></i> Dodaj odpowiedź
+                    </span>
+                    <div class="d-flex align-items-center mt-2 ms-2 flex-grow-1">
+                        <input type="range" class="form-range answer-range slider" min="5" max="30" value="5">
+                        <span class="ms-2 text-white range-value">5</span>
+                    </div>
+                </div>
             </div>
     `;
     questionsContainer.appendChild(questionCard);
@@ -67,6 +73,8 @@ function createQuestionCard() {
     imgTransfer(questionCard);
     removeQuestion(questionCard);
     chooseAnswer(questionCard);
+    toggleRemoveIconVisibility();
+    sliderValue();
 
     const removeImageBtn = questionCard.querySelector('.show-image-btn');
     removeImageBtn.addEventListener('click', () => {
@@ -148,7 +156,22 @@ function removeQuestion(questionCard){
         if (questionsContainer.children.length > 1) {
             questionCard.remove();
         }
+        toggleRemoveIconVisibility();
     });
+}
+
+function toggleRemoveIconVisibility() {
+    const deleteIcons = document.querySelectorAll('.delete-icon');
+
+    if (questionsContainer.children.length <= 1) {
+        deleteIcons.forEach(icon => {
+            icon.style.display = 'none';
+        });
+    } else {
+        deleteIcons.forEach(icon => {
+            icon.style.display = 'inline-block';
+        });
+    }
 }
 
 function imgTransfer(questionCard) {
@@ -168,16 +191,16 @@ function imgTransfer(questionCard) {
         if (file) {
             const reader = new FileReader();
             reader.onload = function (e) {
+                if (showImageBtn._tooltip) {
+                    showImageBtn._tooltip.dispose();
+                }
+
                 showImageBtn.classList.remove('d-none');
 
                 showImageBtn.setAttribute(
                     'title',
                     `<img src="${e.target.result}" class="img-fluid" style="max-width: 200px; max-height: 200px;" />`
                 );
-
-                if (showImageBtn._tooltip) {
-                    showImageBtn._tooltip.dispose();
-                }
 
                 const tooltip = new bootstrap.Tooltip(showImageBtn, {
                     html: true,
@@ -201,7 +224,6 @@ function imgTransfer(questionCard) {
     });
 }
 
-
 function removeImage(questionCard) {
     const showImageBtn = questionCard.querySelector('.show-image-btn');
     const fileInput = questionCard.querySelector('.file-input');
@@ -209,6 +231,12 @@ function removeImage(questionCard) {
     showImageBtn.classList.add('d-none');
 
     fileInput.value = '';
+
+    if (showImageBtn._tooltip) {
+        showImageBtn._tooltip.hide();
+    }
+
+    showImageBtn.innerHTML = '<i class="bi bi-search text-white"></i>';
 }
 
 function toggleAddAnswerButton(questionCard) {
@@ -236,55 +264,76 @@ addQuestionButton.addEventListener('click', () => {
     createQuestionCard();
 });
 
+function sliderValue(){
+    document.querySelectorAll('.answer-range').forEach(rangeInput => {
+        const rangeValue = rangeInput.nextElementSibling;
+
+        rangeValue.textContent = rangeInput.value;
+
+        rangeInput.addEventListener('input', () => {
+            rangeValue.textContent = rangeInput.value;
+        });
+    });
+}
+
 saveButton.addEventListener('click', () => {
-    const quizTitle = document.getElementById('quizTitle').value;
+    const quizTitleElement = document.getElementById('quizTitle');
+    const quizTitle = quizTitleElement.value;
     const questions = [];
     const formData = new FormData();
 
     let isValid = true;
-    if (!quizTitle.trim()) {
-        alert('Tytuł quizu nie może być pusty!');
-        isValid = false;
-    }
+
+    isValid = validateInput(quizTitleElement) && isValid;
 
     document.querySelectorAll('#questionsContainer .card').forEach((card, index) => {
-        const questionText = card.querySelector('input[type="text"]').value;
-        const answers = [];
-
+        const questionInput = card.querySelector('input[type="text"]');
         const fileInput = card.querySelector('.file-input');
         const imageFile = fileInput.files[0] || null;
 
-        if (!questionText.trim()) {
-            alert(`Treść pytania ${index + 1} jest pusta!`);
-            isValid = false;
-        }
+        isValid = validateInput(questionInput) && isValid;
 
         if (imageFile) {
             formData.append('files', imageFile);
         }
 
-        card.querySelectorAll('.input-group.mb-2').forEach(group => {
-            const answerText = group.querySelector('input[type="text"]').value;
+        const answers = [];
+        let hasCorrectAnswer = false;
+
+        card.querySelectorAll('.input-group.mb-2').forEach((group) => {
+            const answerInput = group.querySelector('input[type="text"]');
             const isCorrect = group.querySelector('input[type="checkbox"]').checked;
 
-            if (!answerText.trim()) {
-                alert(`Treść odpowiedzi w pytaniu ${index + 1} jest pusta!`);
-                isValid = false;
-            }
+            isValid = validateInput(answerInput) && isValid;
 
-            answers.push({ content: answerText, is_correct: isCorrect });
+            answers.push({ content: answerInput.value.trim(), is_correct: isCorrect });
+
+            if (isCorrect) {
+                hasCorrectAnswer = true;
+            }
         });
 
-        if (!answers.some(answer => answer.is_correct)) {
-            alert(`Pytanie ${index + 1} musi mieć przynajmniej jedną poprawną odpowiedź.`);
+        card.querySelectorAll('.input-group.mb-2').forEach(group => {
+                const checkboxDiv = group.querySelector('.input-group-text');
+                checkboxDiv.classList.remove('input-error');
+            });
+        if (!hasCorrectAnswer) {
             isValid = false;
+            card.querySelectorAll('.input-group.mb-2').forEach(group => {
+                const checkboxDiv = group.querySelector('.input-group-text');
+                checkboxDiv.classList.add('input-error');
+            });
         }
 
-        if(isValid) {
+        const rangeInput = card.querySelector('.form-range');
+        const rangeValue = rangeInput ? rangeInput.value : 5;
+
+        if (isValid) {
             questions.push({
-                content: questionText,
+                content: questionInput.value.trim(),
                 image_url: imageFile ? `file_${index}` : null,
-                answers: answers
+                answers: answers,
+                time: rangeValue
             });
         }
     });
@@ -294,7 +343,6 @@ saveButton.addEventListener('click', () => {
     }
 
     formData.append('title', quizTitle);
-
     formData.append('questions', JSON.stringify(questions));
 
     fetch('/quiz/add', {
@@ -310,5 +358,17 @@ saveButton.addEventListener('click', () => {
     })
     .catch(error => console.error('Błąd:', error));
 });
+
+function validateInput(inputElement) {
+    const value = inputElement?.value.trim() || '';
+    inputElement?.classList.remove('input-error');
+
+    if (!value) {
+        inputElement?.classList.add('input-error');
+        return false;
+    }
+    return true;
+}
+
 
 
