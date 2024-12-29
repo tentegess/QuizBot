@@ -1,3 +1,6 @@
+from PIL import Image
+from io import BytesIO
+
 def validate_quiz_data(title: str, questions_data: list):
     if not title or title.strip() == "":
         return False
@@ -21,3 +24,15 @@ def validate_quiz_data(title: str, questions_data: list):
             if not answer.get('content'):
                 return False
         return True
+
+def img_scaling(file_contents):
+    image = Image.open(BytesIO(file_contents))
+
+    max_size = (1280, 720)
+    image.thumbnail(max_size)
+
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+    buffer.seek(0)
+
+    return buffer

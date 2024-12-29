@@ -16,7 +16,7 @@ from model.question_model import QuestionModel
 from model.option_model import OptionModel
 from utils.auth import Oauth, api
 from utils.validate_session import validate_session_without_data, validate_session_with_data
-from utils.validate_quiz import validate_quiz_data
+from utils.validate_quiz import validate_quiz_data, img_scaling
 from utils.generate_unique_id import get_unique_access_code
 from discord.ext.ipc import Client
 from config.config import session_collection, quiz_collection, db, question_collection
@@ -161,6 +161,7 @@ async def save_quiz(
             image_file = files[idx]
             file_contents = await image_file.read()
 
+            file_contents = img_scaling(file_contents)
             fs = AsyncIOMotorGridFSBucket(db)
             grid_file_id = await fs.upload_from_stream(image_file.filename, file_contents)
             image_url = grid_file_id
