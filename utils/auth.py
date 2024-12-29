@@ -1,7 +1,7 @@
 import os
 from datetime import datetime, timezone, timedelta
 import aiohttp
-from bson import ObjectId
+from bson.objectid import ObjectId
 from dotenv import load_dotenv
 from config.config import session_collection
 

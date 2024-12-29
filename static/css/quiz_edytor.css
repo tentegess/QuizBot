@@ -1,0 +1,55 @@
+.logout-btn:hover i{
+    color: red !important;
+}
+
+.card {
+    background-color: #2E3034;
+    border-color: #000;
+}
+
+.card {
+    box-shadow: none;
+    overflow: hidden;
+}
+
+.border-custom{
+    border: 2px solid transparent;
+    border-radius: 10px;
+}
+
+.green-border{
+    border-color: green !important;
+    transition: border-color 0.3s ease;
+}
+
+.clickable-icon{
+    cursor: pointer;
+}
+
+input[type="checkbox"] {
+    accent-color: green !important;
+}
+
+input[type="checkbox"]:checked {
+    background-color: green !important;
+    border-color: green !important;
+}
+
+.test {
+    position: relative;
+}
+
+.test2 {
+    position: absolute;
+    top: 0;
+    right: 0;
+    background: rgba(255, 255, 255, 0.7);
+    border-radius: 50%;
+    cursor: pointer;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+

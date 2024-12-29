@@ -1,16 +1,16 @@
 <nav class="navbar navbar-expand-lg nav-c border-bottom border-dark mb-4">
     <div class="container-fluid">
         <a class="navbar-brand d-flex align-items-center p-0 btn-animation" href="/">
-            <img src="{{ url_for('static', path='images/discord_icon.png') }}" alt="Logo" class="navbar-logo img-animation me-2" style="height: 40px; width: auto;">
+            <img src="{{ url_for('static', path='images/discord_icon.png') }}" alt="Logo" class="navbar-logo img-animation me-2 img-nav">
         </a>
 
-        <a class="navbar-brand d-flex align-items-center p-0 btn-animation text-white" href="/quiz_redirect">
-            <span class="fs-4">Quiz</span>
+        <a class="navbar-brand d-flex align-items-center p-0 btn-animation text-white" href="/new-quiz">
+            <span class="fs-4">Dodaj Quiz</span>
         </a>
 
-        <div class="d-flex align-items-center ms-auto logout-btn ">
+        <div class="d-flex align-items-center ms-auto logout-btn">
             <a href="/logout" class="btn d-flex align-items-center ">
-                <i class="bi bi-power text-white"></i>
+                <i class="bi bi-box-arrow-right text-white"></i>
             </a>
         </div>
     </div>

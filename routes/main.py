@@ -2,18 +2,26 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 from http.client import responses
 import discord
-from bson import ObjectId
+from bson.objectid import ObjectId
 from dotenv import load_dotenv
-from fastapi import APIRouter, Request, HTTPException, Cookie, status
+from fastapi import APIRouter, Request, HTTPException, Cookie, status, File, UploadFile, Form
 from fastapi.params import Depends
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse
 from requests import session
+from typing import List
 from model.session_model import SessionModel
+from model.quiz_model import QuizModel
+from model.question_model import QuestionModel
+from model.option_model import OptionModel
 from utils.auth import Oauth, api
 from utils.validate_session import validate_session_without_data, validate_session_with_data
+from utils.validate_quiz import validate_quiz_data
 from discord.ext.ipc import Client
-from config.config import session_collection
+from config.config import session_collection, quiz_collection, db
+import json
+from typing import List, Optional
+from motor.motor_asyncio import AsyncIOMotorGridFSBucket
 
 
 load_dotenv()
@@ -92,7 +100,7 @@ async def guilds(request: Request, data: dict = Depends(validate_session_with_da
 
         guild["icon"] = f"https://cdn.discordapp.com/icons/{guild['id']}/{guild['icon']}"
         is_admin = discord.Permissions(int(guild["permissions"])).administrator
-        perms.append(guild)
+
         if is_admin or guild["owner"]:
             perms.append(guild)
 
@@ -107,12 +115,7 @@ async def guilds(request: Request, data: dict = Depends(validate_session_with_da
         })
 
 @main_router.get("/server/{guild_id}")
-async def server(request: Request, guild_id: int, data: dict = Depends(validate_session_without_data)):
-    session_id = request.cookies.get("session_id")
-    session = await session_collection.find_one({"_id": ObjectId(session_id)})
-    if not session_id or not session:
-        raise HTTPException(status_code=401, detail="brak uprawnień")
-
+async def server(request: Request, guild_id: int, _: None = Depends(validate_session_without_data)):
     stats = await ipc.request("guild_stats", guild_id=guild_id)
 
     return templates.TemplateResponse(
@@ -123,6 +126,66 @@ async def server(request: Request, guild_id: int, data: dict = Depends(validate_
             "member_count": stats.response["member_count"],
             "id": guild_id,
         })
+
+@main_router.get("/new-quiz")
+async def make_quiz(request: Request, _: None = Depends(validate_session_without_data)):
+    return templates.TemplateResponse(
+        "make_quiz.html",
+        {
+            "request": request,
+        })
+
+
+@main_router.post("/quiz/add")
+async def save_quiz(
+        title: str = Form(...),
+        questions: str = Form(...),
+        files: Optional[List[UploadFile]] = File(None),
+        data: dict = Depends(validate_session_with_data)
+):
+    user = data['user']
+    user_id = user.get("id")
+
+    questions_data = json.loads(questions)
+    if not validate_quiz_data(title, questions_data):
+        raise HTTPException(status_code=400, detail="Niepoprawnie uzupełnione dane.")
+
+    saved_questions = []
+    for idx, question in enumerate(questions_data):
+        image_url = None
+        if files and idx < len(files):
+            image_file = files[idx]
+            file_contents = await image_file.read()
+
+            fs = AsyncIOMotorGridFSBucket(db)
+            grid_file_id = await fs.upload_from_stream(image_file.filename, file_contents)
+            image_url = grid_file_id
+
+        options = [
+            OptionModel(option=answer['content'], is_correct=answer['is_correct'])
+            for answer in question.get('answers', [])
+        ]
+
+        saved_question = QuestionModel(
+            question=question['content'],
+            options=options,
+            image_url=image_url
+        )
+        saved_questions.append(saved_question)
+
+    quiz = QuizModel(
+        title=title,
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
+        user_id=int(user_id),
+        questions=saved_questions
+    )
+
+    quiz_dict = quiz.model_dump()
+    quiz_id = await quiz_collection.insert_one(quiz_dict)
+
+    return
+
 
 @main_router.get("/logout")
 async def logout(session_id: str = Cookie(None)):

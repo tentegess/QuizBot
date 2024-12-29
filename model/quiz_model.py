@@ -1,11 +1,15 @@
 from datetime import datetime
-from bson import ObjectId
 from pydantic import BaseModel
 from typing import List
+from model.question_model import QuestionModel
 
 
 class QuizModel(BaseModel):
     title: str
     created_at: datetime
     updated_at: datetime
-    questions: List[ObjectId]
+    user_id: int
+    questions: List[QuestionModel]
+
+    class Config:
+        arbitrary_types_allowed = True

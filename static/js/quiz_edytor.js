@@ -1,0 +1,314 @@
+const addQuestionButton = document.getElementById('addQuestionButton');
+const questionsContainer = document.getElementById('questionsContainer');
+const saveButton = document.getElementById('saveButton');
+
+document.addEventListener('DOMContentLoaded', function () {
+    createQuestionCard();
+})
+
+function createQuestionCard() {
+    const questionCard = document.createElement('div');
+    questionCard.classList.add('card', 'mb-3', 'border-dark');
+    questionCard.innerHTML = `
+            <div class="card-body color-l">
+                <div class="mb-3">
+                    <div class="input-group mb-4">
+                        <span class="input-group-text color-m border-dark text-white clickable-icon">
+                            <i class="bi bi-image"></i>
+                            <input type="file" class="file-input d-none" accept="image/*">
+                        </span>
+                        
+                        <span class="btn color-m border-dark text-white show-image-btn clickable-icon d-none">
+                            <i class="bi bi-search text-white"></i>
+                        </span>
+                        
+                        <input type="text" class="form-control color-m border-dark text-white" placeholder="Treść Pytania">
+                        <span class="input-group-text color-m border-dark text-danger clickable-icon delete-icon">
+                            <i class="bi bi-trash"></i>
+                        </span>
+                    </div>
+
+                    <div class="input-group mb-2 border-custom">
+                        <input type="text" class="form-control text-white color-m border-dark" placeholder="Treść Odpowiedzi">
+                        <div class="input-group-text text-white color-m border-dark">
+                            <input type="checkbox" aria-label="Correct Answer" class="me-2 answer-checkbox">
+                            Odpowiedź
+                        </div>
+                        <span class="input-group-text color-m border-dark text-danger clickable-icon delete-answer-icon">
+                            <i class="bi bi-trash"></i>
+                        </span>
+                    </div>
+                    <div class="input-group mb-2 border-custom">
+                        <input type="text" class="form-control text-white color-m border-dark" placeholder="Treść Odpowiedzi">
+                        <div class="input-group-text text-white color-m border-dark">
+                            <input type="checkbox" aria-label="Correct Answer" class="me-2 answer-checkbox">
+                            Odpowiedź
+                        </div>
+                        <span class="input-group-text color-m border-dark text-danger clickable-icon delete-answer-icon">
+                            <i class="bi bi-trash"></i>
+                        </span>
+                    </div>
+                </div>
+                
+                <span class="btn color-m border-dark text-white mt-2 add-answer-btn clickable-icon">
+                    <i class="bi bi-plus"></i> Dodaj odpowiedź
+                </span>
+            </div>
+    `;
+    questionsContainer.appendChild(questionCard);
+
+    const addAnswerButton = questionCard.querySelector('.add-answer-btn');
+    addAnswerButton.addEventListener('click', () => {
+        addAnswer(questionCard);
+    });
+
+    setupDeleteAnswer(questionCard);
+    toggleAddAnswerButton(questionCard);
+    imgTransfer(questionCard);
+    removeQuestion(questionCard);
+    chooseAnswer(questionCard);
+
+    const removeImageBtn = questionCard.querySelector('.show-image-btn');
+    removeImageBtn.addEventListener('click', () => {
+        removeImage(questionCard);
+    })
+}
+
+function addAnswer(questionCard) {
+    const answerContainer = questionCard.querySelector('.mb-3');
+
+    const newAnswerGroup = document.createElement('div');
+    newAnswerGroup.classList.add('input-group', 'mb-2', 'border-custom');
+
+    newAnswerGroup.innerHTML = `
+        <input type="text" class="form-control text-white color-m border-dark" placeholder="Treść Odpowiedzi">
+        <div class="input-group-text text-white color-m border-dark">
+            <input type="checkbox" aria-label="Correct Answer" class="me-2 answer-checkbox">
+            Odpowiedź
+        </div>
+        <span class="input-group-text color-m border-dark text-danger clickable-icon delete-answer-icon">
+            <i class="bi bi-trash"></i>
+        </span>
+    `;
+
+    const lastAnswerGroup = answerContainer.querySelector('.input-group.mb-2:last-of-type');
+
+    if (lastAnswerGroup) {
+        lastAnswerGroup.after(newAnswerGroup);
+    } else {
+        answerContainer.prepend(newAnswerGroup);
+    }
+
+    chooseAnswer(questionCard);
+    toggleAddAnswerButton(questionCard);
+    setupDeleteAnswer(questionCard);
+}
+
+function setupDeleteAnswer(questionCard) {
+    const deleteIcons = questionCard.querySelectorAll('.delete-answer-icon');
+
+    deleteIcons.forEach(icon => {
+        icon.addEventListener('click', () => {
+            const answerGroups = questionCard.querySelectorAll('.input-group.mb-2');
+
+            if (answerGroups.length > 2) {
+                icon.closest('.input-group').remove();
+                toggleAddAnswerButton(questionCard);
+            }
+        });
+    });
+}
+
+function chooseAnswer(questionCard){
+    const checkboxes = questionCard.querySelectorAll('.answer-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', (event) => {
+            const inputGroup = event.target.closest('.input-group');
+
+            if (event.target.checked) {
+                inputGroup.classList.add('green-border');
+
+                checkboxes.forEach(otherCheckbox => {
+                    if (otherCheckbox !== event.target) {
+                        otherCheckbox.checked = false;
+                        const otherInputGroup = otherCheckbox.closest('.input-group');
+                        otherInputGroup.classList.remove('green-border');
+                    }
+                });
+            } else {
+                inputGroup.classList.remove('green-border');
+            }
+        });
+    });
+}
+
+function removeQuestion(questionCard){
+    const deleteButton = questionCard.querySelector('.delete-icon');
+    deleteButton.addEventListener('click', () => {
+        if (questionsContainer.children.length > 1) {
+            questionCard.remove();
+        }
+    });
+}
+
+function imgTransfer(questionCard) {
+    const imageIcon = questionCard.querySelector('.clickable-icon');
+    const fileInput = questionCard.querySelector('.file-input');
+    const showImageBtn = questionCard.querySelector('.show-image-btn');
+    const defaultIcon = '<i class="bi bi-search text-white"></i>';
+    const hoverIcon = '<i class="bi bi bi-trash text-danger"></i>';
+
+    imageIcon.addEventListener('click', () => {
+        fileInput.click();
+    });
+
+    fileInput.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                showImageBtn.classList.remove('d-none');
+
+                showImageBtn.setAttribute(
+                    'title',
+                    `<img src="${e.target.result}" class="img-fluid" style="max-width: 200px; max-height: 200px;" />`
+                );
+
+                if (showImageBtn._tooltip) {
+                    showImageBtn._tooltip.dispose();
+                }
+
+                const tooltip = new bootstrap.Tooltip(showImageBtn, {
+                    html: true,
+                    placement: 'right',
+                    trigger: 'hover',
+                });
+
+                showImageBtn._tooltip = tooltip;
+            };
+
+            reader.readAsDataURL(file);
+        }
+    });
+
+    showImageBtn.addEventListener('mouseenter', () => {
+        showImageBtn.innerHTML = hoverIcon;
+    });
+
+    showImageBtn.addEventListener('mouseleave', () => {
+        showImageBtn.innerHTML = defaultIcon;
+    });
+}
+
+
+function removeImage(questionCard) {
+    const showImageBtn = questionCard.querySelector('.show-image-btn');
+    const fileInput = questionCard.querySelector('.file-input');
+
+    showImageBtn.classList.add('d-none');
+
+    fileInput.value = '';
+}
+
+function toggleAddAnswerButton(questionCard) {
+    const addAnswerButton = questionCard.querySelector('.add-answer-btn');
+    const answerGroups = questionCard.querySelectorAll('.input-group.mb-2');
+
+    if (answerGroups.length >= 4) {
+        addAnswerButton.style.display = 'none';
+    } else {
+        addAnswerButton.style.display = 'inline-block';
+    }
+
+    if (answerGroups.length <= 2) {
+        questionCard.querySelectorAll('.delete-answer-icon').forEach(icon => {
+            icon.style.display = 'none';
+        });
+    } else {
+        questionCard.querySelectorAll('.delete-answer-icon').forEach(icon => {
+            icon.style.display = 'inline-block';
+        });
+    }
+}
+
+addQuestionButton.addEventListener('click', () => {
+    createQuestionCard();
+});
+
+saveButton.addEventListener('click', () => {
+    const quizTitle = document.getElementById('quizTitle').value;
+    const questions = [];
+    const formData = new FormData();
+
+    let isValid = true;
+    if (!quizTitle.trim()) {
+        alert('Tytuł quizu nie może być pusty!');
+        isValid = false;
+    }
+
+    document.querySelectorAll('#questionsContainer .card').forEach((card, index) => {
+        const questionText = card.querySelector('input[type="text"]').value;
+        const answers = [];
+
+        const fileInput = card.querySelector('.file-input');
+        const imageFile = fileInput.files[0] || null;
+
+        if (!questionText.trim()) {
+            alert(`Treść pytania ${index + 1} jest pusta!`);
+            isValid = false;
+        }
+
+        if (imageFile) {
+            formData.append('files', imageFile);
+        }
+
+        card.querySelectorAll('.input-group.mb-2').forEach(group => {
+            const answerText = group.querySelector('input[type="text"]').value;
+            const isCorrect = group.querySelector('input[type="checkbox"]').checked;
+
+            if (!answerText.trim()) {
+                alert(`Treść odpowiedzi w pytaniu ${index + 1} jest pusta!`);
+                isValid = false;
+            }
+
+            answers.push({ content: answerText, is_correct: isCorrect });
+        });
+
+        if (!answers.some(answer => answer.is_correct)) {
+            alert(`Pytanie ${index + 1} musi mieć przynajmniej jedną poprawną odpowiedź.`);
+            isValid = false;
+        }
+
+        if(isValid) {
+            questions.push({
+                content: questionText,
+                image_url: imageFile ? `file_${index}` : null,
+                answers: answers
+            });
+        }
+    });
+
+    if (!isValid) {
+        return;
+    }
+
+    formData.append('title', quizTitle);
+
+    formData.append('questions', JSON.stringify(questions));
+
+    fetch('/quiz/add', {
+        method: 'POST',
+        body: formData,
+    })
+    .then(response => {
+        if (response.ok) {
+            alert('Quiz został zapisany!');
+        } else {
+            alert('Wystąpił błąd podczas zapisu quizu.');
+        }
+    })
+    .catch(error => console.error('Błąd:', error));
+});
+
+

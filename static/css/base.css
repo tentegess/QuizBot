@@ -2,6 +2,11 @@ body {
     background-color: #35393f;
 }
 
+.img-nav{
+    height: 40px;
+    width: auto;
+}
+
 .img-animation{
     transition: transform 0.5s ease;
 }
@@ -10,8 +15,27 @@ body {
     animation: rotate-speed 2s cubic-bezier(0.25, 0.1, 0.25, 1) infinite;
 }
 
-.nav-c{
+.nav-c, .color-d{
     background-color: #2E3034;
+}
+
+.color-m{
+    background-color: #35393f;
+}
+
+.color-m::placeholder {
+    color: #d1d1d1;
+}
+
+.color-m:focus {
+    color: #d1d1d1;
+    background-color: inherit;
+    outline: none;
+    box-shadow: none;
+}
+
+.color-l{
+    background-color: #35373b;
 }
 
 @keyframes rotate-speed {
@@ -24,8 +48,4 @@ body {
     100% {
         transform: rotate(360deg);
     }
-}
-
-.logout-btn:hover i{
-    color: red !important;  /* Utrzymuje biały kolor ikony */
 }

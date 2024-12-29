@@ -1,9 +1,12 @@
-from bson import ObjectId
+from bson.objectid import ObjectId
 from pydantic import BaseModel
 from typing import List, Optional
+from model.option_model import OptionModel
 
 class QuestionModel(BaseModel):
-    text: str
-    options: List[str]
-    correct_answer_index: int
+    question: str
+    options: List[OptionModel]
     image_url: Optional[ObjectId]
+
+    class Config:
+        arbitrary_types_allowed = True
