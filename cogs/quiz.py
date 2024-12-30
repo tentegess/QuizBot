@@ -6,6 +6,7 @@ from bot_modules.quiz_session import QuizSession
 import asyncio
 from bot_modules.join_view import JoinQuizView
 from datetime import datetime, timedelta, timezone
+import motor.motor_asyncio
 
 class QuizCog(commands.Cog):
     def __init__(self, bot):
@@ -13,6 +14,7 @@ class QuizCog(commands.Cog):
         self.active_games = {}
         self.active_join_views = {}
         self.db = self.bot.db
+        self.fs = motor.motor_asyncio.AsyncIOMotorGridFSBucket(self.db)
 
 
     @commands.Cog.listener()

@@ -1,3 +1,5 @@
+import io
+
 import discord
 import asyncio
 from datetime import datetime, timedelta, timezone
@@ -46,16 +48,8 @@ class QuizSession:
             return
 
         question = self.questions[self.current_question_index]
-        end_time = datetime.now(timezone.utc) + timedelta(seconds=question.time)
 
         self.correct_count_for_question = 0
-
-        embed = discord.Embed(
-            title=f"Pytanie {self.current_question_index + 1}",
-            description=question.question,
-            color=discord.Color.blurple()
-        )
-        embed.add_field(name="Pozostały czas", value=f"<t:{int(end_time.timestamp())}:R>")
 
         view = discord.ui.View(timeout=question.time)
         for idx, option in enumerate(question.options):
@@ -65,8 +59,27 @@ class QuizSession:
 
         self.current_view = view
 
+        embed = discord.Embed(
+            title=f"Pytanie {self.current_question_index + 1}",
+            color=discord.Color.blurple()
+        )
+
+        file = []
+        if question.image_url:
+            try:
+                out = io.BytesIO()
+                await self.cog.fs.download_to_stream(question.image_url, out)
+                out.seek(0)
+                file.append(discord.File(out, filename="question_image.png"))
+                embed.set_image(url="attachment://question_image.png")
+            except Exception as e:
+                print(f"Błąd pobierania obrazu z GridFS: {e}")
+
+        end_time = datetime.now(timezone.utc) + timedelta(seconds=question.time)
+        embed.description=f"**Koniec czasu <t:{int(end_time.timestamp())}:R>** \n\n {question.question}"
+
         if self.message:
-            success = await self.safe_message_edit(embed=embed, view=view)
+            success = await self.safe_message_edit(embed=embed, view=view, file=file)
             if not success:
                 return
         else:
@@ -216,7 +229,13 @@ class QuizSession:
 
     async def show_scoreboard(self, final=False, next_question_in=None):
         leaderboard = sorted(self.scores.items(), key=lambda x: x[1], reverse=True)
-        scores_text = "\n".join([f"{user.name}: {score} punktów" for user, score in leaderboard])
+        scores_text = ""
+        rank = 1
+        for user, score in leaderboard:
+            member = self.channel.guild.get_member(user.id)
+            user_mention = member.mention if member else f"<@{user.id}>"
+            scores_text += f"**{rank}.** {user_mention} — {score} pkt\n"
+            rank += 1
 
         title = "Aktualne wyniki" if not final else "Koniec gry! Ostateczne wyniki"
 
@@ -234,9 +253,9 @@ class QuizSession:
         if not success:
             return
 
-    async def safe_message_edit(self, embed=None, view=None):
+    async def safe_message_edit(self, embed=None, view=None, file=[]):
         try:
-            await self.message.edit(embed=embed, view=view)
+            await self.message.edit(embed=embed, view=view, attachments=file)
         except discord.NotFound:
             await self.game_del()
             return False
@@ -276,6 +295,10 @@ class QuizSession:
             self.question_task.cancel()
         self.question_task = None
 
+        game_key = (self.channel.guild.id, self.channel.id)
+        if game_key in self.cog.active_games:
+            del self.cog.active_games[game_key]
+
         games_coll = self.cog.db["Games"]
         results_coll = self.cog.db["Results"]
 
@@ -305,7 +328,3 @@ class QuizSession:
 
         if bulk_docs:
             await results_coll.insert_many(bulk_docs)
-
-        game_key = (self.channel.guild.id, self.channel.id)
-        if game_key in self.cog.active_games:
-            del self.cog.active_games[game_key]
