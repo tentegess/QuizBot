@@ -1,6 +1,9 @@
 from discord import Interaction, app_commands
 import logging
 
+from model.quiz_model import QuizModel
+
+
 def guild_only():
     def predicate(interaction: Interaction) -> bool:
         if interaction.guild is None:
@@ -8,6 +11,11 @@ def guild_only():
         return True
     return app_commands.check(predicate)
 
+async def get_quiz(db,access_code):
+    doc = await db["Quizzes"].find_one({"access_code": access_code})
+    if not doc:
+        return None
+    return QuizModel(**doc)
 
 def set_logger():
     logger = logging.getLogger('discord')

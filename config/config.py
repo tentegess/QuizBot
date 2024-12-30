@@ -15,6 +15,7 @@ quiz_collection = db['Quizzes']
 question_collection = db['Questions']
 game_collection = db['Games']
 answer_collection = db['Answers']
+result_collection = db['Results']
 
 try:
     client.admin.command('ping')

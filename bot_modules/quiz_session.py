@@ -1,15 +1,16 @@
 import discord
-from discord.ext import commands
-from discord import app_commands
-from bot_utils.get_quiz import get_quiz_for_guild
 import asyncio
-import traceback
 from datetime import datetime, timedelta, timezone
+from model.game_model import GameModel
+from model.resut_model import ResultModel
+from model.quiz_model import QuizModel
 
 class QuizSession:
-    def __init__(self, quiz, channel, cog, players, message, game_starter, correct_answer_display_time=5, scoreboard_display_time=5
+    def __init__(self, quiz:QuizModel, channel, cog, players, message, game_starter, correct_answer_display_time=5, scoreboard_display_time=5
                  , send_private_messages=True):
         self.quiz = quiz
+        self.questions = quiz.questions
+
         self.channel = channel
         self.cog = cog
         self.players = players
@@ -31,6 +32,8 @@ class QuizSession:
         self.is_processing_question = False
         self.game_ended = False
 
+
+
     async def start(self):
         await self.send_question()
 
@@ -42,20 +45,21 @@ class QuizSession:
             await self.end_game()
             return
 
-        question = self.quiz.questions[self.current_question_index]
-        end_time = datetime.now(timezone.utc) + timedelta(seconds=question.time_limit)
+        question = self.questions[self.current_question_index]
+        end_time = datetime.now(timezone.utc) + timedelta(seconds=question.time)
 
         self.correct_count_for_question = 0
 
         embed = discord.Embed(
             title=f"Pytanie {self.current_question_index + 1}",
-            description=question.text
+            description=question.question,
+            color=discord.Color.blurple()
         )
         embed.add_field(name="Pozostały czas", value=f"<t:{int(end_time.timestamp())}:R>")
 
-        view = discord.ui.View(timeout=question.time_limit)
-        for idx, answer in enumerate(question.answers):
-            button = discord.ui.Button(label=answer, style=discord.ButtonStyle.primary)
+        view = discord.ui.View(timeout=question.time)
+        for idx, option in enumerate(question.options):
+            button = discord.ui.Button(label=option.option, style=discord.ButtonStyle.primary)
             button.callback = self.create_answer_callback(idx)
             view.add_item(button)
 
@@ -70,12 +74,12 @@ class QuizSession:
 
         self.answered_users.clear()
 
-        self.question_task = asyncio.create_task(self.question_timer(question.time_limit))
+        self.question_task = asyncio.create_task(self.question_timer(question.time))
 
 
-    async def question_timer(self, time_limit):
+    async def question_timer(self, time: int):
         try:
-            await asyncio.sleep(time_limit)
+            await asyncio.sleep(time)
             for item in self.current_view.children:
                 item.disabled = True
             await self.question_summary()
@@ -92,24 +96,29 @@ class QuizSession:
             return
         self.is_processing_question = True
         try:
-            question = self.quiz.questions[self.current_question_index]
-            correct_index = question.correct_answer
-            correct_answer = question.answers[correct_index]
+            question = self.questions[self.current_question_index]
+            correct_index = next(
+                (i for i, opt in enumerate(question.options) if opt.is_correct),
+                None
+            )
+
+            if correct_index is None:
+                correct_index = -1
+
+            correct_answer = question.options[correct_index].option if correct_index >= 0 else "(brak poprawnej)"
 
             answer_view = discord.ui.View()
 
-            for idx, answer in enumerate(question.answers):
-                if idx == correct_index:
-                    style = discord.ButtonStyle.green
-                else:
-                    style = discord.ButtonStyle.danger
+            for idx, option in enumerate(question.options):
+                style = discord.ButtonStyle.green if idx == correct_index else discord.ButtonStyle.danger
 
-                button = discord.ui.Button(label=answer, style=style, disabled=True)
+                button = discord.ui.Button(label=option.option, style=style, disabled=True)
                 answer_view.add_item(button)
 
             correct_answer_embed = discord.Embed(
                 title=f"Poprawna odpowiedź na pytanie {self.current_question_index + 1}",
-                description=f"Poprawna odpowiedź: {correct_answer}"
+                description=f"Poprawna odpowiedź: {correct_answer}",
+                color = discord.Color.blurple()
             )
             success = await self.safe_message_edit(embed=correct_answer_embed, view=answer_view)
             if not success:
@@ -118,6 +127,7 @@ class QuizSession:
             await asyncio.sleep(self.correct_answer_display_time)
             if self.game_ended:
                 return
+
             if self.current_question_index + 1 >= len(self.quiz.questions):
                 await self.end_game()
             else:
@@ -153,12 +163,13 @@ class QuizSession:
 
             self.answered_users.add(user.id)
 
-            correct_index = self.quiz.questions[self.current_question_index].correct_answer
+            question = self.questions[self.current_question_index]
+            answer = question.options[selected_index]
 
             if user not in self.scores:
                 self.scores[user] = 0
 
-            if selected_index == correct_index:
+            if answer.is_correct:
                 base_points = max(1000 - (self.correct_count_for_question * 100), 500)
                 self.correct_count_for_question += 1
                 streak = self.streaks[user]
@@ -211,7 +222,8 @@ class QuizSession:
 
         scoreboard_embed = discord.Embed(
             title=title,
-            description=scores_text
+            description=scores_text,
+            color = discord.Color.blurple() if not final else discord.Color.gold()
         )
 
         if next_question_in is not None:
@@ -244,7 +256,8 @@ class QuizSession:
         view = discord.ui.View()
         embed = discord.Embed(
             title=f"Gra przerwana",
-            description="Quiz został zakończony, ponieważ wiadomość z quizem została usunięta."
+            description="Quiz został zakończony, ponieważ wiadomość z quizem została usunięta.",
+            color=discord.Color.red()
         )
 
         await self.channel.send(embed=embed, view=view)
@@ -262,6 +275,36 @@ class QuizSession:
         if hasattr(self, 'question_task') and not self.question_task.done():
             self.question_task.cancel()
         self.question_task = None
+
+        games_coll = self.cog.db["Games"]
+        results_coll = self.cog.db["Results"]
+
+        now = datetime.now(timezone.utc)
+        game = GameModel(
+            guild_id=self.channel.guild.id,
+            quiz_code=self.quiz.access_code,
+            finished_at=now
+        )
+
+        doc_game = game.model_dump(by_alias=True, exclude_unset=True)
+        insert_res = await games_coll.insert_one(doc_game)
+        game.id = insert_res.inserted_id
+
+        bulk_docs = []
+        for player, score in self.scores.items():
+            user_id = player.id if hasattr(player, "id") else player
+            result_obj = ResultModel(
+                game_id=game.id,
+                user_id=user_id,
+                guild_id=self.channel.guild.id,
+                score=score,
+                finished_at=now
+            )
+            doc_res = result_obj.model_dump(by_alias=True, exclude_unset=True)
+            bulk_docs.append(doc_res)
+
+        if bulk_docs:
+            await results_coll.insert_many(bulk_docs)
 
         game_key = (self.channel.guild.id, self.channel.id)
         if game_key in self.cog.active_games:

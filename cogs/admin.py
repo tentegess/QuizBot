@@ -13,7 +13,7 @@ class AdminCog(commands.Cog):
 
     @app_commands.command(name="gettoken", description="Testowa komenda czy coś")
     @app_commands.checks.has_permissions(administrator=True)
-    @guild_only()
+    @app_commands.guild_only()
     async def set_quiz(self, interaction: discord.Interaction, user_id: str):
         try:
             user_id = int(user_id) 

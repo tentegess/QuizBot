@@ -1,18 +1,18 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from bot_utils.get_quiz import get_quiz_for_guild
+from bot_utils.utils import get_quiz
 from bot_modules.quiz_session import QuizSession
 import asyncio
 from bot_modules.join_view import JoinQuizView
 from datetime import datetime, timedelta, timezone
-from bot_utils.utils import guild_only
 
 class QuizCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.active_games = {}
         self.active_join_views = {}
+        self.db = self.bot.db
 
 
     @commands.Cog.listener()
@@ -34,7 +34,8 @@ class QuizCog(commands.Cog):
                 view = discord.ui.View()
                 embed = discord.Embed(
                     title=f"Gra przerwana",
-                    description="Quiz został zakończony, ponieważ wiadomość z quizem została usunięta."
+                    description="Quiz został zakończony, ponieważ wiadomość z quizem została usunięta.",
+                    color=discord.Color.red()
                 )
                 await message.channel.send(embed=embed, view=view)
                 join_view.stop()
@@ -55,18 +56,26 @@ class QuizCog(commands.Cog):
                 if join_view.message.id == after.id and len(after.embeds) == 0:
                     await join_view.message.delete()
 
+
     @app_commands.command(name="startquiz", description="Rozpocznij quiz")
-    @guild_only()
-    async def start_quiz(self, ctx: discord.Interaction):
+    @app_commands.describe(access_code="Kod quizu")
+    @app_commands.guild_only()
+    async def start_quiz(self, ctx: discord.Interaction, access_code: str):
         guild_id = ctx.guild.id
         channel_id = ctx.channel.id
         game_key = (guild_id, channel_id)
+
+        quiz = await get_quiz(self.db,access_code)
+
+
+        if quiz is None:
+            await ctx.response.send_message("Ten quiz nie istnieje", ephemeral=True)
+            return
 
         if game_key in self.active_games or game_key in self.active_join_views:
             await ctx.response.send_message("Gra już trwa w tym kanale.", ephemeral=True)
             return
 
-        quiz = get_quiz_for_guild(guild_id)
         if not quiz:
             await ctx.response.send_message("Brak skonfigurowanego quizu dla tego serwera.", ephemeral=True)
             return
@@ -76,8 +85,9 @@ class QuizCog(commands.Cog):
         end_time = datetime.now(timezone.utc) + timedelta(seconds=join_view.timeout)
 
         embed = discord.Embed(
-            title="Dołącz do Quizu!",
-            description=f"Kliknij przycisk poniżej, aby dołączyć do quizu!\n\nPozostały czas: <t:{int(end_time.timestamp())}:R>"
+            title="Dołącz do Quizu "+ quiz.title,
+            description=f"Kliknij przycisk poniżej, aby dołączyć do quizu!\n\nPozostały czas: <t:{int(end_time.timestamp())}:R>",
+            color=discord.Color.blurple(),
         )
         embed.add_field(name="Uczestnicy:", value="Brak", inline=False)
         await ctx.response.send_message(embed=embed, view=join_view)
@@ -107,7 +117,7 @@ class QuizCog(commands.Cog):
         await game.start()
 
     @app_commands.command(name="endquiz", description="Zakończ aktualną grę")
-    @guild_only()
+    @app_commands.guild_only()
     async def end_quiz(self, ctx: discord.Interaction):
         guild_id = ctx.guild.id
         channel_id = ctx.channel.id
@@ -136,7 +146,8 @@ class QuizCog(commands.Cog):
             if join_view.message:
                 embed = discord.Embed(
                     title="Koniec gry!",
-                    description="Gra została anulowana"
+                    description="Gra została anulowana",
+                    color=discord.Color.red()
                 )
                 await join_view.message.edit(embed=embed, view=None)
             join_view.stop()
@@ -148,7 +159,7 @@ class QuizCog(commands.Cog):
                                             ephemeral=True)
 
     @app_commands.command(name="skipquestion", description="Pomiń aktualne pytanie")
-    @guild_only()
+    @app_commands.guild_only()
     async def skip_question(self, ctx: discord.Interaction):
         guild_id = ctx.guild.id
         channel_id = ctx.channel.id
