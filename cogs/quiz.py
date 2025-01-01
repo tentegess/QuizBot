@@ -1,3 +1,5 @@
+import re
+
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -6,7 +8,32 @@ from bot_modules.quiz_session import QuizSession
 import asyncio
 from bot_modules.join_view import JoinQuizView
 from datetime import datetime, timedelta, timezone
+from typing import Optional, List
 import motor.motor_asyncio
+
+class MembersListTransformer(app_commands.Transformer):
+    async def transform(self, interaction: discord.Interaction, value: str) -> List[discord.Member]:
+        parts = value.split()
+        members = []
+
+        mention_pattern = re.compile(r"<@!?(\d+)>")
+
+        for chunk in parts:
+            user_id = None
+
+            match = mention_pattern.match(chunk)
+            if match:
+                user_id = int(match.group(1))
+            else:
+                if chunk.isdigit():
+                    user_id = int(chunk)
+
+            if user_id is not None:
+                member = interaction.guild.get_member(user_id)
+                if member:
+                    members.append(member)
+
+        return members
 
 class QuizCog(commands.Cog):
     def __init__(self, bot):
@@ -60,9 +87,11 @@ class QuizCog(commands.Cog):
 
 
     @app_commands.command(name="startquiz", description="Rozpocznij quiz")
-    @app_commands.describe(access_code="Kod quizu")
+    @app_commands.describe(access_code="Kod quizu", allowed_users="Użytkownicy, którzy mogą dołączyć (opcjonalne, rozdzieleni spacją)")
     @app_commands.guild_only()
-    async def start_quiz(self, ctx: discord.Interaction, access_code: str):
+    async def start_quiz(self, ctx: discord.Interaction,
+                        access_code: str,
+                        allowed_users:Optional[app_commands.Transform[List[discord.Member], MembersListTransformer]]):
         guild_id = ctx.guild.id
         channel_id = ctx.channel.id
         game_key = (guild_id, channel_id)
@@ -82,7 +111,7 @@ class QuizCog(commands.Cog):
             await ctx.response.send_message("Brak skonfigurowanego quizu dla tego serwera.", ephemeral=True)
             return
 
-        join_view = JoinQuizView(timeout=10, cog=self, game_key=game_key, gamestarter=ctx.user)
+        join_view = JoinQuizView(timeout=10, cog=self, game_key=game_key, gamestarter=ctx.user, allowed_users=allowed_users)
         self.active_join_views[game_key] = join_view
         end_time = datetime.now(timezone.utc) + timedelta(seconds=join_view.timeout)
 
@@ -100,6 +129,10 @@ class QuizCog(commands.Cog):
         if game_key not in self.active_join_views:
             return
 
+
+        if game_key in self.active_join_views:
+            del self.active_join_views[game_key]
+
         if not join_view.players:
             embed = discord.Embed(
                 title="Nikt nie dołączył do quizu",
@@ -107,9 +140,6 @@ class QuizCog(commands.Cog):
             )
             await message.edit(embed=embed, view=None)
             return
-
-        if game_key in self.active_join_views:
-            del self.active_join_views[game_key]
 
         game = QuizSession(quiz, ctx.channel, self, players=join_view.players, message=message,
                            game_starter=ctx.user,
@@ -189,6 +219,36 @@ class QuizCog(commands.Cog):
 
         await game.question_summary()
 
+    @app_commands.command(name="kickplayer", description="Wyrzuć gracza z aktualnego quizu.")
+    @app_commands.describe(member="Kogo wyrzucić z quizu?")
+    @app_commands.guild_only()
+    async def kick_player(self, interaction: discord.Interaction, member: discord.Member):
+        guild_id = interaction.guild.id
+        channel_id = interaction.channel.id
+        game_key = (guild_id, channel_id)
+
+        if game_key not in self.active_games:
+            await interaction.response.send_message("Aktualnie nie ma żadnej aktywnej gry w tym kanale.",
+                                                    ephemeral=True)
+            return
+
+        game = self.active_games[game_key]
+
+        if interaction.user != game.game_starter and not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message("Nie masz uprawnień do wyrzucania graczy z quizu.", ephemeral=True)
+            return
+
+        if member not in game.players:
+            await interaction.response.send_message(f"{member.mention} i tak nie jest w tym quizie.", ephemeral=True)
+            return
+
+        game.kicked_players.add(member.id)
+        if member in game.scores:
+            del game.scores[member]
+        if member in game.streaks:
+            del game.streaks[member]
+
+        await interaction.response.send_message(f"{member.mention} został wyrzucony z quizu.", ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(QuizCog(bot))
