@@ -22,10 +22,6 @@
     transition: border-color 0.3s ease;
 }
 
-.clickable-icon{
-    cursor: pointer;
-}
-
 input[type="checkbox"] {
     accent-color: green !important;
 }

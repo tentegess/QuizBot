@@ -14,15 +14,20 @@ from model.session_model import SessionModel
 from model.quiz_model import QuizModel
 from model.question_model import QuestionModel
 from model.option_model import OptionModel
+from model.user_model import UserModel
 from utils.auth import Oauth, api
 from utils.validate_session import validate_session_without_data, validate_session_with_data
 from utils.validate_quiz import validate_quiz_data, img_scaling
 from utils.generate_unique_id import get_unique_access_code
 from discord.ext.ipc import Client
-from config.config import session_collection, quiz_collection, db, question_collection
+from config.config import session_collection, quiz_collection, db, user_collection
 import json
 from typing import List, Optional
 from motor.motor_asyncio import AsyncIOMotorGridFSBucket
+from math import ceil
+from fastapi.responses import JSONResponse
+from pymongo import ASCENDING, DESCENDING
+
 
 
 load_dotenv()
@@ -71,6 +76,16 @@ async def login(code: str):
     result = await session_collection.update_one(
         {"user_id": int(user_id)},
         {"$set": session.model_dump()},
+        upsert=True
+    )
+
+    user_name_model = UserModel(
+        user_id=user_id,
+        username=user.get('username'),
+    )
+    await user_collection.update_one(
+        {"user_id": user_id},
+        {"$set": user_name_model.model_dump()},
         upsert=True
     )
 
@@ -139,7 +154,6 @@ async def make_quiz(request: Request, _: None = Depends(validate_session_without
             "request": request,
         })
 
-
 @main_router.post("/quiz/add")
 async def save_quiz(
         title: str = Form(...),
@@ -155,16 +169,18 @@ async def save_quiz(
         raise HTTPException(status_code=400, detail="Niepoprawnie uzupełnione dane.")
 
     saved_questions = []
-    for idx, question in enumerate(questions_data):
+    file_idx = 0
+    for question in questions_data:
         image_url = None
-        if files and idx < len(files):
-            image_file = files[idx]
+        if question.get('image_url'):
+            image_file = files[file_idx]
             file_contents = await image_file.read()
 
             file_contents = img_scaling(file_contents)
             fs = AsyncIOMotorGridFSBucket(db)
             grid_file_id = await fs.upload_from_stream(image_file.filename, file_contents)
             image_url = grid_file_id
+            file_idx += 1
 
         options = [
             OptionModel(option=answer['content'], is_correct=answer['is_correct'])
@@ -193,6 +209,75 @@ async def save_quiz(
     quiz_dict = quiz.model_dump()
     quiz_id = await quiz_collection.insert_one(quiz_dict)
     return
+
+@main_router.get("/quiz")
+async def get_quizzes(request: Request):
+
+    return templates.TemplateResponse(
+        "show_quizzes.html",
+        {
+            "request": request,
+        }
+    )
+
+@main_router.get("/quiz/data")
+async def get_quizzes_data(page: int = 1, sort: str = "title_asc", search: str = ""):
+    filters = {}
+    if search:
+        filters["title"] = {"$regex": search, "$options": "i"}
+
+    sort_order = []
+    collation = {"locale": "en", "strength": 1}
+
+    if sort == "title_asc":
+        sort_order = [("title", ASCENDING)]
+    elif sort == "title_desc":
+        sort_order = [("title", DESCENDING)]
+    elif sort == "questions_asc":
+        sort_order = [("questions", ASCENDING)]
+    elif sort == "questions_desc":
+        sort_order = [("questions", DESCENDING)]
+    elif sort == "author_asc":
+        sort_order = [("author", ASCENDING)]
+    elif sort == "author_desc":
+        sort_order = [("author", DESCENDING)]
+    elif sort == "create_date_asc":
+        sort_order = [("created_at", ASCENDING)]
+    elif sort == "create_date_desc":
+        sort_order = [("created_at", DESCENDING)]
+    elif sort == "updated_date_asc":
+        sort_order = [("updated_at", ASCENDING)]
+    elif sort == "updated_date_desc":
+        sort_order = [("updated_at", DESCENDING)]
+    else:
+        sort_order = [("updated_at", ASCENDING)]
+
+    quizzes_cursor = quiz_collection.find(
+        filters, {"title": 1, "author": 1, "questions": 1, "_id": 1, "user_id": 1, "created_at": 1, "updated_at": 1}
+    ).sort(sort_order).collation(collation).skip((page - 1) * 9).limit(9)
+
+    quizzes = []
+    async for quiz in quizzes_cursor:
+        questions_count = len(quiz["questions"])
+
+        user = await user_collection.find_one({"user_id": quiz["user_id"]}, {"username": 1})
+
+        quizzes.append({
+            "title": quiz["title"],
+            "author": user["username"] if user else "unknown",
+            "questions": questions_count,
+            "created_at": quiz["created_at"].isoformat() if isinstance(quiz["created_at"], datetime) else quiz["created_at"],
+            "updated_at": quiz["updated_at"].isoformat() if isinstance(quiz["updated_at"], datetime) else quiz["updated_at"],
+        })
+
+    total_quizzes = await quiz_collection.count_documents(filters)
+    total_pages = ceil(total_quizzes / 9)
+
+    return JSONResponse({
+        "quizzes": quizzes,
+        "page": page,
+        "total_pages": total_pages
+    })
 
 @main_router.get("/logout")
 async def logout(session_id: str = Cookie(None)):
