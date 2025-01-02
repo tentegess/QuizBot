@@ -1,9 +1,12 @@
+import io
+
 import discord
 import asyncio
 from datetime import datetime, timedelta, timezone
 from model.game_model import GameModel
 from model.resut_model import ResultModel
 from model.quiz_model import QuizModel
+from bot_utils.utils import get_row
 
 class QuizSession:
     def __init__(self, quiz:QuizModel, channel, cog, players, message, game_starter, correct_answer_display_time=5, scoreboard_display_time=5
@@ -16,9 +19,11 @@ class QuizSession:
         self.players = players
         self.current_question_index = 0
         self.scores = {}
-        self.player_answers = {}
-        self.message = message
+        #self.player_answers = {}
         self.answered_users = set()
+        self.kicked_players = set()
+
+        self.message = message
         self.current_view = None
         self.game_starter = game_starter
 
@@ -46,27 +51,40 @@ class QuizSession:
             return
 
         question = self.questions[self.current_question_index]
-        end_time = datetime.now(timezone.utc) + timedelta(seconds=question.time)
 
         self.correct_count_for_question = 0
 
-        embed = discord.Embed(
-            title=f"Pytanie {self.current_question_index + 1}",
-            description=question.question,
-            color=discord.Color.blurple()
-        )
-        embed.add_field(name="Pozostały czas", value=f"<t:{int(end_time.timestamp())}:R>")
 
         view = discord.ui.View(timeout=question.time)
         for idx, option in enumerate(question.options):
-            button = discord.ui.Button(label=option.option, style=discord.ButtonStyle.primary)
+            button = discord.ui.Button(label=option.option,
+                                       style=discord.ButtonStyle.primary, row=get_row(len(option.option),idx))
             button.callback = self.create_answer_callback(idx)
             view.add_item(button)
 
         self.current_view = view
 
+        embed = discord.Embed(
+            title=f"Pytanie {self.current_question_index + 1}/{len(self.quiz.questions)}",
+            color=discord.Color.blurple()
+        )
+
+        file = []
+        if question.image_url:
+            try:
+                out = io.BytesIO()
+                await self.cog.fs.download_to_stream(question.image_url, out)
+                out.seek(0)
+                file.append(discord.File(out, filename="question_image.png"))
+                embed.set_image(url="attachment://question_image.png")
+            except Exception as e:
+                print(f"Błąd pobierania obrazu z GridFS: {e}")
+
+        end_time = datetime.now(timezone.utc) + timedelta(seconds=question.time)
+        embed.description=f"**Koniec czasu <t:{int(end_time.timestamp())}:R>** \n\n {question.question}"
+
         if self.message:
-            success = await self.safe_message_edit(embed=embed, view=view)
+            success = await self.safe_message_edit(embed=embed, view=view, file=file)
             if not success:
                 return
         else:
@@ -109,14 +127,28 @@ class QuizSession:
 
             answer_view = discord.ui.View()
 
+            anslen = sum(len(opt.option) for opt in question.options)
+            max_len = max(len(opt.option) for opt in question.options)
+
+            if anslen < 35:
+                def row_of(i):
+                    return i // 4
+            elif anslen < 70:
+                def row_of(i):
+                    return i // 2
+            else:
+                def row_of(i):
+                    return i
+
             for idx, option in enumerate(question.options):
                 style = discord.ButtonStyle.green if idx == correct_index else discord.ButtonStyle.danger
 
-                button = discord.ui.Button(label=option.option, style=style, disabled=True)
+                button = discord.ui.Button(label=option.option.center(max_len,"\u3000"), style=style, disabled=True,
+                                           row=get_row(len(option.option),idx))
                 answer_view.add_item(button)
 
             correct_answer_embed = discord.Embed(
-                title=f"Poprawna odpowiedź na pytanie {self.current_question_index + 1}",
+                title=f"Poprawna odpowiedź na pytanie {self.current_question_index + 1}/{len(self.quiz.questions)}",
                 description=f"Poprawna odpowiedź: {correct_answer}",
                 color = discord.Color.blurple()
             )
@@ -146,6 +178,14 @@ class QuizSession:
                 else:
                     await interaction.response.defer()
             user = interaction.user
+
+            if user.id in self.kicked_players:
+                embed = discord.Embed(
+                    title="Zostałeś wyrzucony z tego quizu!",
+                    color=discord.Color.red()
+                )
+                await interaction.response.send_message(embed=embed, ephemeral=True)
+                return
 
             if user not in self.players:
                 embed = discord.Embed(
@@ -200,8 +240,10 @@ class QuizSession:
                 embed.add_field(name="Streak", value=str(streak), inline=True)
                 await callback_mess(embed)
 
-            if len(self.answered_users) >= len(self.players):
-                self.question_task.cancel()
+            active_players_count = len([p for p in self.players if p.id not in self.kicked_players])
+            if len(self.answered_users) >= active_players_count:
+                if self.question_task and not self.question_task.done():
+                    self.question_task.cancel()
                 await self.question_summary()
 
         return callback
@@ -216,7 +258,13 @@ class QuizSession:
 
     async def show_scoreboard(self, final=False, next_question_in=None):
         leaderboard = sorted(self.scores.items(), key=lambda x: x[1], reverse=True)
-        scores_text = "\n".join([f"{user.name}: {score} punktów" for user, score in leaderboard])
+        scores_text = ""
+        rank = 1
+        for user, score in leaderboard:
+            member = self.channel.guild.get_member(user.id)
+            user_mention = member.mention if member else f"<@{user.id}>"
+            scores_text += f"**{rank}.** {user_mention} — {score} pkt\n"
+            rank += 1
 
         title = "Aktualne wyniki" if not final else "Koniec gry! Ostateczne wyniki"
 
@@ -234,9 +282,9 @@ class QuizSession:
         if not success:
             return
 
-    async def safe_message_edit(self, embed=None, view=None):
+    async def safe_message_edit(self, embed=None, view=None, file=[]):
         try:
-            await self.message.edit(embed=embed, view=view)
+            await self.message.edit(embed=embed, view=view, attachments=file)
         except discord.NotFound:
             await self.game_del()
             return False
@@ -276,6 +324,10 @@ class QuizSession:
             self.question_task.cancel()
         self.question_task = None
 
+        game_key = (self.channel.guild.id, self.channel.id)
+        if game_key in self.cog.active_games:
+            del self.cog.active_games[game_key]
+
         games_coll = self.cog.db["Games"]
         results_coll = self.cog.db["Results"]
 
@@ -305,7 +357,3 @@ class QuizSession:
 
         if bulk_docs:
             await results_coll.insert_many(bulk_docs)
-
-        game_key = (self.channel.guild.id, self.channel.id)
-        if game_key in self.cog.active_games:
-            del self.cog.active_games[game_key]

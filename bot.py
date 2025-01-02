@@ -10,8 +10,8 @@ from bot_utils.utils import set_logger
 
 intents = discord.Intents.default()
 intents.message_content = True
-
-from bot_utils.utils import guild_only
+intents.guilds = True
+intents.members = True
 
 
 class BotClass(commands.Bot):

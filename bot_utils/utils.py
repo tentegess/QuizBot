@@ -34,3 +34,11 @@ def set_logger():
     logger.addHandler(console_handler)
 
     return logger, console_handler
+
+def get_row(anslen, i):
+    if anslen < 10:
+            return i // 4
+    elif anslen < 30:
+            return i // 2
+    else:
+            return i
