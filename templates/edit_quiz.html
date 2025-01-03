@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', path='css/quiz_edytor.css') }}">
+{% endblock %}
+
+{% block navbar %}
+    {% include "navbar.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="container p-4 color-d rounded border border-dark">
+    <form>
+        <div class="mb-3">
+            <input type="text" class="form-control text-white color-m border-dark" id="quizTitle"
+                   value="{{ quiz.title }}" placeholder="Nazwa quizu">
+        </div>
+        <input type="hidden" id="quizId" value="{{ quiz._id }}">
+
+        <!-- Sekcja pytań -->
+        <div id="questionsContainer">
+            {% for question in quiz.questions %}
+                <div class="card mb-3 border-dark" {% if question.image_url %} data-img-url="{{ question.image_url }}" {% endif %}>
+                    <div class="card-body color-l">
+                        <div class="mb-3">
+                            <div class="input-group mb-4">
+                                <span class="input-group-text color-m border-dark text-white clickable-icon">
+                                    <i class="bi bi-image"></i>
+                                    <input type="file" class="file-input d-none" accept="image/*">
+                                </span>
+
+                                <span class="btn color-m border-dark text-white show-image-btn clickable-icon" title="{{ question.image_url }}">
+                                    <i class="bi bi-search text-white"></i>
+                                </span>
+
+                                <input type="text" class="form-control color-m border-dark text-white"
+                                       value="{{ question.question }}" placeholder="Treść Pytania">
+
+                                <span class="input-group-text color-m border-dark text-danger clickable-icon delete-icon">
+                                    <i class="bi bi-trash"></i>
+                                </span>
+                            </div>
+
+                            {% for option in question.options %}
+                            <div class="input-group mb-2 border-custom {% if option.is_correct %} green-border {% endif %}>">
+                                <input type="text" class="form-control text-white color-m border-dark"
+                                       value="{{ option.option }}" placeholder="Treść Odpowiedzi">
+                                <div class="input-group-text text-white color-m border-dark">
+                                    <input type="checkbox" class="me-2 answer-checkbox"
+                                           {% if option.is_correct %} checked {% endif %}>
+                                    Odpowiedź
+                                </div>
+                                <span class="input-group-text color-m border-dark text-danger clickable-icon delete-answer-icon">
+                                    <i class="bi bi-trash"></i>
+                                </span>
+                            </div>
+                            {% endfor %}
+                        </div>
+
+                        <div class="d-flex align-items-center mt-2">
+                            <span class="btn color-m border-dark text-white mt-2 add-answer-btn clickable-icon">
+                                <i class="bi bi-plus"></i> Dodaj odpowiedź
+                            </span>
+                            <div class="d-flex align-items-center mt-2 ms-2 flex-grow-1">
+                                <input type="range" class="form-range answer-range slider" min="5" max="30" value="{{ question.time }}">
+                                <span class="ms-2 text-white range-value">{{ question.time }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+
+        <div class="d-flex gap-2">
+            <button type="button" id="addQuestionButton" class="btn btn-danger flex-grow-1">
+                + Dodaj pytanie
+            </button>
+            <button type="button" id="saveButton" class="btn btn-success d-flex align-items-center">
+                <i class="bi bi-check2-circle"></i>
+            </button>
+        </div>
+
+    </form>
+</div>
+
+<script src="{{ url_for('static', path='js/quiz_edytor.js') }}"></script>
+{% endblock %}

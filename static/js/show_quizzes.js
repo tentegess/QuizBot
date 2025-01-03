@@ -1,4 +1,7 @@
+let currentPage = 1;
+
 function loadPage(page) {
+    currentPage = page;
     const sortOption = document.getElementById('sort-select').value;
     const searchQuery = document.getElementById('search-input').value;
 
@@ -27,11 +30,15 @@ function loadPage(page) {
                                             <i class="bi bi-eye"></i>
                                         </span>
 
-                                        <span class="text-light clickable-icon" title="Edycja">
-                                            <i class="bi bi-pencil"></i>
-                                        </span>
+                                    <a href="/quiz/edit/${quiz._id}" class="text-light clickable-icon" title="Edycja">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+
+
                                     </div>
-                                    <i class="bi bi-trash text-danger"></i>
+                                    <span class="text-light clickable-icon" title="Usuń" onclick="confirmDelete('${quiz._id}')">
+                                        <i class="bi bi-trash text-danger"></i>
+                                    </span>
                                 </div>
                             </div>
                         </div>
@@ -81,3 +88,33 @@ window.onload = function() {
     loadPage(1);
     setupDynamicSearchAndSort();
 };
+
+let quizToDelete = null;
+
+function confirmDelete(quizId) {
+    quizToDelete = quizId;
+
+    const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    deleteModal.show();
+}
+
+document.getElementById('confirmDeleteButton').addEventListener('click', function() {
+    if (quizToDelete) {
+        fetch(`/quiz/delete/${quizToDelete}`, {
+            method: 'DELETE',
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Nie udało się usunąć quizu.');
+            }
+        })
+        .then(data => {
+            const deleteModalElement = document.getElementById('deleteModal');
+            const deleteModalInstance = bootstrap.Modal.getInstance(deleteModalElement);
+            deleteModalInstance.hide();
+
+            loadPage(currentPage);
+        });
+    }
+});
+
