@@ -4,7 +4,7 @@ from http.client import responses
 import discord
 from bson.objectid import ObjectId
 from dotenv import load_dotenv
-from fastapi import APIRouter, Request, HTTPException, Cookie, status, File, UploadFile, Form
+from fastapi import APIRouter, Request, HTTPException, Cookie, status, File, UploadFile, Form, Response
 from fastapi.params import Depends
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse
@@ -14,15 +14,21 @@ from model.session_model import SessionModel
 from model.quiz_model import QuizModel
 from model.question_model import QuestionModel
 from model.option_model import OptionModel
+from model.user_model import UserModel
 from utils.auth import Oauth, api
 from utils.validate_session import validate_session_without_data, validate_session_with_data
 from utils.validate_quiz import validate_quiz_data, img_scaling
 from utils.generate_unique_id import get_unique_access_code
 from discord.ext.ipc import Client
-from config.config import session_collection, quiz_collection, db, question_collection
+from config.config import session_collection, quiz_collection, db, user_collection
 import json
 from typing import List, Optional
 from motor.motor_asyncio import AsyncIOMotorGridFSBucket
+from math import ceil
+from fastapi.responses import JSONResponse
+from pymongo import ASCENDING, DESCENDING
+from fastapi.responses import StreamingResponse
+
 
 
 load_dotenv()
@@ -71,6 +77,16 @@ async def login(code: str):
     result = await session_collection.update_one(
         {"user_id": int(user_id)},
         {"$set": session.model_dump()},
+        upsert=True
+    )
+
+    user_name_model = UserModel(
+        user_id=user_id,
+        username=user.get('username'),
+    )
+    await user_collection.update_one(
+        {"user_id": int(user_id)},
+        {"$set": user_name_model.model_dump()},
         upsert=True
     )
 
@@ -139,32 +155,50 @@ async def make_quiz(request: Request, _: None = Depends(validate_session_without
             "request": request,
         })
 
-
 @main_router.post("/quiz/add")
 async def save_quiz(
         title: str = Form(...),
         questions: str = Form(...),
         files: Optional[List[UploadFile]] = File(None),
-        data: dict = Depends(validate_session_with_data)
+        data: dict = Depends(validate_session_with_data),
+        quiz_id: Optional[str] = Form(None)
 ):
     user = data['user']
     user_id = user.get("id")
+
+    if quiz_id:
+        quiz_id = ObjectId(quiz_id)
+        quiz = await quiz_collection.find_one({"_id": quiz_id})
+        if not quiz:
+            raise HTTPException(status_code=404, detail="Quiz not found")
 
     questions_data = json.loads(questions)
     if not validate_quiz_data(title, questions_data):
         raise HTTPException(status_code=400, detail="Niepoprawnie uzupełnione dane.")
 
     saved_questions = []
-    for idx, question in enumerate(questions_data):
-        image_url = None
-        if files and idx < len(files):
-            image_file = files[idx]
+    file_idx = 0
+    fs = AsyncIOMotorGridFSBucket(db)
+
+    for question in questions_data:
+        image_url = question.get('image_url')
+        if image_url and not image_url.startswith("file_"):
+            image_url = ObjectId(image_url)
+        elif image_url and image_url.startswith("file_"):
+            image_file = files[file_idx]
             file_contents = await image_file.read()
 
             file_contents = img_scaling(file_contents)
-            fs = AsyncIOMotorGridFSBucket(db)
             grid_file_id = await fs.upload_from_stream(image_file.filename, file_contents)
             image_url = grid_file_id
+            file_idx += 1
+        else:
+            if question.get('image_url'):
+                try:
+                    await fs.delete(ObjectId(question['image_url']))
+                except Exception as e:
+                    print(f"Błąd podczas usuwania zdjęcia: {e}")
+            image_url = None
 
         options = [
             OptionModel(option=answer['content'], is_correct=answer['is_correct'])
@@ -177,22 +211,149 @@ async def save_quiz(
             image_url=image_url,
             time=question.get('time', 5)
         )
+
+    if quiz_id:
+        saved_questions.append(saved_question.model_dump())
+        await quiz_collection.update_one(
+            {"_id": quiz_id},
+            {"$set": {
+                'title': title,
+                'updated_at': datetime.now(timezone.utc),
+                'questions': saved_questions
+            }},
+        )
+    else:
         saved_questions.append(saved_question)
+        access_code = await get_unique_access_code()
+        quiz = QuizModel(
+            title=title,
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+            user_id=int(user_id),
+            questions=saved_questions,
+            access_code=access_code
+        )
 
-    access_code = await get_unique_access_code()
+        quiz_dict = quiz.model_dump()
+        quiz_id = await quiz_collection.insert_one(quiz_dict)
 
-    quiz = QuizModel(
-        title=title,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
-        user_id=int(user_id),
-        questions=saved_questions,
-        access_code=access_code
+    return
+
+@main_router.get("/quiz")
+async def get_quizzes(request: Request, _: None = Depends(validate_session_without_data)):
+
+    return templates.TemplateResponse(
+        "show_quizzes.html",
+        {
+            "request": request,
+        }
     )
 
-    quiz_dict = quiz.model_dump()
-    quiz_id = await quiz_collection.insert_one(quiz_dict)
-    return
+@main_router.get("/quiz/data")
+async def get_quizzes_data(page: int = 1, sort: str = "title_asc", search: str = "", _: None = Depends(validate_session_without_data)):
+    filters = {}
+    if search:
+        filters["title"] = {"$regex": search, "$options": "i"}
+
+    sort_order = []
+    collation = {"locale": "en", "strength": 1}
+
+    if sort == "title_asc":
+        sort_order = [("title", ASCENDING)]
+    elif sort == "title_desc":
+        sort_order = [("title", DESCENDING)]
+    elif sort == "questions_asc":
+        sort_order = [("questions", ASCENDING)]
+    elif sort == "questions_desc":
+        sort_order = [("questions", DESCENDING)]
+    elif sort == "author_asc":
+        sort_order = [("author", ASCENDING)]
+    elif sort == "author_desc":
+        sort_order = [("author", DESCENDING)]
+    elif sort == "create_date_asc":
+        sort_order = [("created_at", ASCENDING)]
+    elif sort == "create_date_desc":
+        sort_order = [("created_at", DESCENDING)]
+    elif sort == "updated_date_asc":
+        sort_order = [("updated_at", ASCENDING)]
+    elif sort == "updated_date_desc":
+        sort_order = [("updated_at", DESCENDING)]
+    else:
+        sort_order = [("updated_at", ASCENDING)]
+
+    quizzes_cursor = quiz_collection.find(
+        filters, {"title": 1, "author": 1, "questions": 1, "_id": 1, "user_id": 1, "created_at": 1, "updated_at": 1}
+    ).sort(sort_order).collation(collation).skip((page - 1) * 9).limit(9)
+
+    quizzes = []
+    async for quiz in quizzes_cursor:
+        questions_count = len(quiz["questions"])
+
+        user = await user_collection.find_one({"user_id": quiz["user_id"]}, {"username": 1})
+
+        quizzes.append({
+            "_id": str(quiz["_id"]),
+            "title": quiz["title"],
+            "author": user["username"],
+            "questions": questions_count,
+            "created_at": quiz["created_at"].isoformat(),
+            "updated_at": quiz["updated_at"].isoformat()
+        })
+
+    total_quizzes = await quiz_collection.count_documents(filters)
+    total_pages = ceil(total_quizzes / 9)
+
+    return JSONResponse({
+        "quizzes": quizzes,
+        "page": page,
+        "total_pages": total_pages
+    })
+
+@main_router.delete("/quiz/delete/{quiz_id}")
+async def delete_quiz(quiz_id: str, _: None = Depends(validate_session_without_data)):
+    quiz_object_id = ObjectId(quiz_id)
+
+    quiz = await quiz_collection.find_one({"_id": quiz_object_id})
+    if not quiz:
+        raise HTTPException(status_code=404, detail="Quiz not found")
+
+    await quiz_collection.delete_one({"_id": quiz_object_id})
+
+    return Response(status_code=204)
+
+@main_router.get("/quiz/edit/{quiz_id}")
+async def get_quiz(request: Request, quiz_id: str, _: None = Depends(validate_session_without_data)):
+    try:
+        quiz = await quiz_collection.find_one(
+            {"_id": ObjectId(quiz_id)},
+            {"access_code": 0, "created_at": 0, "updated_at": 0}
+        )
+
+        if not quiz:
+            raise HTTPException(status_code=404, detail="Quiz not found")
+
+        quiz["_id"] = str(quiz["_id"])
+        for question in quiz["questions"]:
+            question["image_url"] = f"/quiz/image/{str(question.get('image_url'))}" if question.get('image_url') else None
+
+        return templates.TemplateResponse(
+            "edit_quiz.html",
+            {
+                "request": request,
+                "quiz": quiz
+            })
+    except Exception as e:
+        print(f"Error occurred: {e}")
+        raise HTTPException(status_code=404, detail="Quiz not found")
+
+@main_router.get("/quiz/image/{img_id}")
+async def get_image(img_id: str):
+    try:
+        fs = AsyncIOMotorGridFSBucket(db)
+        file_data = await fs.open_download_stream(ObjectId(img_id))
+        return StreamingResponse(file_data, media_type="image/png")
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=f"Image not found: {str(e)}")
 
 @main_router.get("/logout")
 async def logout(session_id: str = Cookie(None)):

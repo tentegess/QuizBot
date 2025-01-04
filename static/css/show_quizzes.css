@@ -1,0 +1,56 @@
+.card-body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 70px;
+}
+
+.scalable-text {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    white-space: normal;
+    word-wrap: break-word;
+    line-height: 1.2em;
+    max-height: 2.4em;
+}
+
+.pagination {
+    background-color: #2E3034;
+    border-radius: 5px;
+    padding: 10px;
+}
+
+.page-link {
+    color: white;
+    background-color: #495057;
+    border: 1px solid #343a40;
+    transition: background-color 0.3s;
+}
+
+.page-link:hover {
+    background-color: #35393f;
+    color: #fff;
+}
+
+.page-item.disabled .page-link {
+    background-color: #2E3034;
+    color: #6c757d;
+    cursor: not-allowed;
+    border-color: transparent;
+}
+
+#sort-select {
+    background-color: #333;
+    color: white;
+}
+
+#sort-select option {
+    background-color: #444;
+    color: white;
+}
+
+#sort-select option:hover {
+    background-color: #555;
+}

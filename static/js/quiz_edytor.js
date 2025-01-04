@@ -3,7 +3,26 @@ const questionsContainer = document.getElementById('questionsContainer');
 const saveButton = document.getElementById('saveButton');
 
 document.addEventListener('DOMContentLoaded', function () {
-    createQuestionCard();
+    document.querySelectorAll('#questionsContainer .card').forEach((questionCard) => {
+        setupDeleteAnswer(questionCard);
+        toggleAddAnswerButton(questionCard);
+        imgTransfer(questionCard);
+        removeQuestion(questionCard);
+        chooseAnswer(questionCard);
+        toggleRemoveIconVisibility();
+        sliderValue();
+
+        const addAnswerButton = questionCard.querySelector('.add-answer-btn');
+        addAnswerButton.addEventListener('click', () => {
+            addAnswer(questionCard);
+        });
+
+        const removeImageBtn = questionCard.querySelector('.show-image-btn');
+        removeImageBtn.addEventListener('click', () => {
+            removeImage(questionCard);
+        })
+
+    });
 })
 
 function createQuestionCard() {
@@ -179,7 +198,24 @@ function imgTransfer(questionCard) {
     const fileInput = questionCard.querySelector('.file-input');
     const showImageBtn = questionCard.querySelector('.show-image-btn');
     const defaultIcon = '<i class="bi bi-search text-white"></i>';
-    const hoverIcon = '<i class="bi bi bi-trash text-danger"></i>';
+    const hoverIcon = '<i class="bi bi-trash text-danger"></i>';
+
+    const imgUrl = questionCard.dataset.imgUrl;
+    if (imgUrl) {
+        showImageBtn.classList.remove('d-none');
+        showImageBtn.setAttribute(
+            'title',
+            `<img src="${imgUrl}" class="img-fluid" style="max-width: 200px; max-height: 200px;" />`
+        );
+        const tooltip = new bootstrap.Tooltip(showImageBtn, {
+            html: true,
+            placement: 'right',
+            trigger: 'hover',
+        });
+        showImageBtn._tooltip = tooltip;
+    } else {
+        showImageBtn.classList.add('d-none');
+    }
 
     imageIcon.addEventListener('click', () => {
         fileInput.click();
@@ -223,6 +259,9 @@ function imgTransfer(questionCard) {
         showImageBtn.innerHTML = defaultIcon;
     });
 }
+
+
+
 
 function removeImage(questionCard) {
     const showImageBtn = questionCard.querySelector('.show-image-btn');
@@ -289,12 +328,21 @@ saveButton.addEventListener('click', () => {
     document.querySelectorAll('#questionsContainer .card').forEach((card, index) => {
         const questionInput = card.querySelector('input[type="text"]');
         const fileInput = card.querySelector('.file-input');
+        const showImageBtn = card.querySelector('.show-image-btn');
         const imageFile = fileInput.files[0] || null;
 
         isValid = validateInput(questionInput) && isValid;
 
+        let imageUrl = null;
         if (imageFile) {
             formData.append('files', imageFile);
+            imageUrl = `file_${index}`;
+        } else if (showImageBtn && !showImageBtn.classList.contains('d-none')) {
+            const originalTitle = showImageBtn.getAttribute('data-bs-original-title');
+            const imgTagMatch = originalTitle.match(/<img src="([^"]+)"/);
+            const fullUrl = imgTagMatch[1];
+            const parts = fullUrl.split('/');
+            imageUrl = parts[parts.length - 1];
         }
 
         const answers = [];
@@ -331,7 +379,7 @@ saveButton.addEventListener('click', () => {
         if (isValid) {
             questions.push({
                 content: questionInput.value.trim(),
-                image_url: imageFile ? `file_${index}` : null,
+                image_url: imageUrl,
                 answers: answers,
                 time: rangeValue
             });
@@ -344,6 +392,11 @@ saveButton.addEventListener('click', () => {
 
     formData.append('title', quizTitle);
     formData.append('questions', JSON.stringify(questions));
+
+    const quizId = document.getElementById('quizId') ? document.getElementById('quizId').value : null;
+    if (quizId) {
+        formData.append('quiz_id', quizId);
+    }
 
     fetch('/quiz/add', {
         method: 'POST',

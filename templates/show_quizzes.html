@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', path='css/show_quizzes.css') }}">
+{% endblock %}
+
+{% block navbar %}
+    {% include "navbar.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="container py-3">
+    <div class="row mb-3 py-3 color-d rounded-3">
+        <div class="col-md-8">
+            <input id="search-input" type="text" class="form-control text-white color-m" placeholder="Wyszukaj quiz">
+        </div>
+
+        <div class="col-md-4">
+            <select id="sort-select" class="form-select text-white color-m">
+                <option value="updated_date_desc">Sortuj po dacie modyfikacji (malejąco)</option>
+                <option value="updated_date_asc">Sortuj po dacie modyfikacji (rosnąco)</option>
+                <option value="create_date_desc">Sortuj po dacie< utworzenia (malejąco)</option>
+                <option value="create_date_asc">Sortuj po dacie utworzenia (rosnąco)</option>
+                <option value="title_asc">Sortuj po nazwie (A-Z)</option>
+                <option value="title_desc">Sortuj po nazwie (Z-A)</option>
+                <option value="questions_asc">Sortuj po liczbie pytań (rosnąco)</option>
+                <option value="questions_desc">Sortuj po liczbie pytań (malejąco)</option>
+                <option value="author_asc">Sortuj po autorze (A-Z)</option>
+                <option value="author_desc">Sortuj po autorze (Z-A)</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="row row-cols-1 row-cols-md-3 g-4" id="quiz-list">
+    </div>
+
+    <div id="pagination" class="d-flex justify-content-center mt-4">
+    </div>
+</div>
+
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteModalLabel">Potwierdzenie usunięcia</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Jesteś pewny, że chcesz usunąć ten quiz?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteButton">Tak, usuń</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="{{ url_for('static', path='js/show_quizzes.js') }}"></script>
+{% endblock %}

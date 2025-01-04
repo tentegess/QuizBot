@@ -19,6 +19,9 @@ body {
     background-color: #2E3034;
 }
 
+.color-d2{
+    background-color: #343a40;
+}
 .color-m{
     background-color: #35393f;
 }
@@ -38,6 +41,10 @@ body {
     background-color: #35373b;
 }
 
+.color-l2{
+    background-color: #495057;
+}
+
 @keyframes rotate-speed {
     0% {
         transform: rotate(0deg);
@@ -49,3 +56,8 @@ body {
         transform: rotate(360deg);
     }
 }
+
+.clickable-icon{
+    cursor: pointer;
+}
+

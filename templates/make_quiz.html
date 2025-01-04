@@ -15,9 +15,61 @@
             <input type="text" class="form-control text-white color-m border-dark" id="quizTitle" placeholder="Nazwa quizu">
         </div>
 
-        <!-- Sekcja pytań -->
         <div id="questionsContainer">
+            <div class="card mb-3 border-dark">
+                <div class="card-body color-l">
+                    <div class="mb-3">
+                        <div class="input-group mb-4">
+                            <span class="input-group-text color-m border-dark text-white clickable-icon">
+                                <i class="bi bi-image"></i>
+                                <input type="file" class="file-input d-none" accept="image/*">
+                            </span>
 
+                            <span class="btn color-m border-dark text-white show-image-btn clickable-icon d-none">
+                                <i class="bi bi-search text-white"></i>
+                            </span>
+
+                            <input type="text" class="form-control color-m border-dark text-white" placeholder="Treść Pytania">
+
+                            <span class="input-group-text color-m border-dark text-danger clickable-icon delete-icon">
+                                <i class="bi bi-trash"></i>
+                            </span>
+                        </div>
+
+                        <div class="input-group mb-2 border-custom">
+                            <input type="text" class="form-control text-white color-m border-dark" placeholder="Treść Odpowiedzi">
+                            <div class="input-group-text text-white color-m border-dark">
+                                <input type="checkbox" class="me-2 answer-checkbox">
+                                Odpowiedź
+                            </div>
+                            <span class="input-group-text color-m border-dark text-danger clickable-icon delete-answer-icon">
+                                <i class="bi bi-trash"></i>
+                            </span>
+                        </div>
+
+                        <div class="input-group mb-2 border-custom">
+                            <input type="text" class="form-control text-white color-m border-dark" placeholder="Treść Odpowiedzi">
+                            <div class="input-group-text text-white color-m border-dark">
+                                <input type="checkbox" class="me-2 answer-checkbox">
+                                Odpowiedź
+                            </div>
+                            <span class="input-group-text color-m border-dark text-danger clickable-icon delete-answer-icon">
+                                <i class="bi bi-trash"></i>
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="d-flex align-items-center mt-2">
+                        <span class="btn color-m border-dark text-white mt-2 add-answer-btn clickable-icon">
+                            <i class="bi bi-plus"></i> Dodaj odpowiedź
+                        </span>
+                        <div class="d-flex align-items-center mt-2 ms-2 flex-grow-1">
+                            <input type="range" class="form-range answer-range slider" min="5" max="30" value="5">
+                            <span class="ms-2 text-white range-value"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div class="d-flex gap-2">
