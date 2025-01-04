@@ -28,7 +28,7 @@ from math import ceil
 from fastapi.responses import JSONResponse
 from pymongo import ASCENDING, DESCENDING
 from fastapi.responses import StreamingResponse
-
+import pytz
 
 
 load_dotenv()
@@ -171,6 +171,8 @@ async def save_quiz(
         quiz = await quiz_collection.find_one({"_id": quiz_id})
         if not quiz:
             raise HTTPException(status_code=404, detail="Quiz not found")
+        if quiz["user_id"] != int(user_id):
+            raise HTTPException(status_code=401, detail="brak uprawnień")
 
     questions_data = json.loads(questions)
     if not validate_quiz_data(title, questions_data):
@@ -250,7 +252,10 @@ async def get_quizzes(request: Request, _: None = Depends(validate_session_witho
     )
 
 @main_router.get("/quiz/data")
-async def get_quizzes_data(page: int = 1, sort: str = "title_asc", search: str = "", _: None = Depends(validate_session_without_data)):
+async def get_quizzes_data(page: int = 1, sort: str = "title_asc", search: str = "", data: dict = Depends(validate_session_with_data)):
+    user = data['user']
+    user_id = user.get("id")
+
     filters = {}
     if search:
         filters["title"] = {"$regex": search, "$options": "i"}
@@ -287,6 +292,9 @@ async def get_quizzes_data(page: int = 1, sort: str = "title_asc", search: str =
 
     quizzes = []
     async for quiz in quizzes_cursor:
+        is_editable = False
+        if quiz["user_id"] == int(user_id):
+            is_editable = True
         questions_count = len(quiz["questions"])
 
         user = await user_collection.find_one({"user_id": quiz["user_id"]}, {"username": 1})
@@ -297,7 +305,8 @@ async def get_quizzes_data(page: int = 1, sort: str = "title_asc", search: str =
             "author": user["username"],
             "questions": questions_count,
             "created_at": quiz["created_at"].isoformat(),
-            "updated_at": quiz["updated_at"].isoformat()
+            "updated_at": quiz["updated_at"].isoformat(),
+            "is_editable": is_editable
         })
 
     total_quizzes = await quiz_collection.count_documents(filters)
@@ -310,20 +319,26 @@ async def get_quizzes_data(page: int = 1, sort: str = "title_asc", search: str =
     })
 
 @main_router.delete("/quiz/delete/{quiz_id}")
-async def delete_quiz(quiz_id: str, _: None = Depends(validate_session_without_data)):
+async def delete_quiz(quiz_id: str, data: dict = Depends(validate_session_with_data)):
+    user = data['user']
+    user_id = user.get("id")
     quiz_object_id = ObjectId(quiz_id)
 
     quiz = await quiz_collection.find_one({"_id": quiz_object_id})
     if not quiz:
         raise HTTPException(status_code=404, detail="Quiz not found")
+    if quiz["user_id"] != int(user_id):
+        raise HTTPException(status_code=401, detail="brak uprawnień")
 
     await quiz_collection.delete_one({"_id": quiz_object_id})
 
     return Response(status_code=204)
 
 @main_router.get("/quiz/edit/{quiz_id}")
-async def get_quiz(request: Request, quiz_id: str, _: None = Depends(validate_session_without_data)):
+async def get_quiz(request: Request, quiz_id: str, data: dict = Depends(validate_session_with_data)):
     try:
+        user = data['user']
+        user_id = user.get("id")
         quiz = await quiz_collection.find_one(
             {"_id": ObjectId(quiz_id)},
             {"access_code": 0, "created_at": 0, "updated_at": 0}
@@ -331,6 +346,8 @@ async def get_quiz(request: Request, quiz_id: str, _: None = Depends(validate_se
 
         if not quiz:
             raise HTTPException(status_code=404, detail="Quiz not found")
+        if quiz["user_id"] != int(user_id):
+            raise HTTPException(status_code=401, detail="brak uprawnień")
 
         quiz["_id"] = str(quiz["_id"])
         for question in quiz["questions"]:
@@ -354,6 +371,39 @@ async def get_image(img_id: str):
         return StreamingResponse(file_data, media_type="image/png")
     except Exception as e:
         raise HTTPException(status_code=404, detail=f"Image not found: {str(e)}")
+
+@main_router.get("/quiz/view/{quiz_id}")
+async def view_quiz(request: Request, quiz_id: str, data: dict = Depends(validate_session_with_data)):
+    user = data['user']
+    user_id = int(user.get("id"))
+    user = await user_collection.find_one({"user_id": user_id}, {"username": 1})
+
+    try:
+        quiz = await quiz_collection.find_one(
+            {"_id": ObjectId(quiz_id)}
+        )
+
+        if not quiz:
+            raise HTTPException(status_code=404, detail="Quiz not found")
+
+        quiz["_id"] = str(quiz["_id"])
+        time_zone = pytz.timezone('Europe/Warsaw')
+        quiz['created_at'] = pytz.utc.localize(quiz['created_at']).astimezone(time_zone).strftime('%d-%m-%Y %H:%M:%S')
+        quiz['updated_at'] = pytz.utc.localize(quiz['updated_at']).astimezone(time_zone).strftime('%d-%m-%Y %H:%M:%S')
+
+        for question in quiz["questions"]:
+            question["image_url"] = f"/quiz/image/{str(question.get('image_url'))}" if question.get('image_url') else None
+
+        return templates.TemplateResponse(
+            "view_quiz.html",
+            {
+                "request": request,
+                "quiz": quiz,
+                "author": user["username"]
+            })
+    except Exception as e:
+        print(f"Error occurred: {e}")
+        raise HTTPException(status_code=404, detail="Quiz not found")
 
 @main_router.get("/logout")
 async def logout(session_id: str = Cookie(None)):
