@@ -12,6 +12,7 @@ from typing import Optional, List
 import motor.motor_asyncio
 from bot_utils.RedisHelper import RedisHelper
 from bot import BotClass
+from logging import ERROR
 
 class MembersListTransformer(app_commands.Transformer):
     async def transform(self, interaction: discord.Interaction, value: str) -> List[discord.Member]:
@@ -44,7 +45,7 @@ class QuizCog(commands.Cog):
         self.active_join_views = {}
         self.db = self.bot.db
         self.fs = motor.motor_asyncio.AsyncIOMotorGridFSBucket(self.db)
-        self.redis = RedisHelper(self.bot.redis)
+        self.redis = RedisHelper(self.bot.redis, self.bot.logger)
         self.bot.loop.create_task(self.on_ready())
 
 
@@ -133,19 +134,25 @@ class QuizCog(commands.Cog):
         channel_id = ctx.channel.id
         game_key = (guild_id, channel_id)
 
-        quiz = await get_quiz(self.db,access_code)
+        try:
+            await ctx.response.defer()
+            quiz = await get_quiz(self.db,access_code)
+        except Exception as e:
+            self.bot.log(message=e, name="MongoDB error", level=ERROR)
+            await ctx.followup.send("Wystąpił problem z pobraniem quizu spróbuj ponownie później", ephemeral=True)
+            return
 
 
         if quiz is None:
-            await ctx.response.send_message("Ten quiz nie istnieje", ephemeral=True)
+            await ctx.followup.send("Ten quiz nie istnieje", ephemeral=True)
             return
 
         if game_key in self.active_games or game_key in self.active_join_views:
-            await ctx.response.send_message("Gra już trwa w tym kanale.", ephemeral=True)
+            await ctx.followup.send("Gra już trwa w tym kanale.", ephemeral=True)
             return
 
         if not quiz:
-            await ctx.response.send_message("Brak skonfigurowanego quizu dla tego serwera.", ephemeral=True)
+            await ctx.followup.send("Brak skonfigurowanego quizu dla tego serwera.", ephemeral=True)
 
             return
 
@@ -159,7 +166,7 @@ class QuizCog(commands.Cog):
             color=discord.Color.blurple(),
         )
         embed.add_field(name="Uczestnicy:", value="Brak", inline=False)
-        await ctx.response.send_message(embed=embed, view=join_view)
+        await ctx.followup.send(embed=embed, view=join_view)
         message = await ctx.original_response()
         join_view.message = message
         await asyncio.sleep(join_view.timeout)

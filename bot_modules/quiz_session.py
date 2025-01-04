@@ -1,4 +1,5 @@
 import io
+from logging import ERROR
 
 import bson
 import discord
@@ -331,26 +332,28 @@ class QuizSession:
             quiz_code=self.quiz.access_code,
             finished_at=now
         )
+        try:
+            doc_game = game.model_dump(by_alias=True, exclude_unset=True)
+            insert_res = await games_coll.insert_one(doc_game)
+            game.id = insert_res.inserted_id
 
-        doc_game = game.model_dump(by_alias=True, exclude_unset=True)
-        insert_res = await games_coll.insert_one(doc_game)
-        game.id = insert_res.inserted_id
+            bulk_docs = []
+            for player, score in self.scores.items():
+                user_id = player.id if hasattr(player, "id") else player
+                result_obj = ResultModel(
+                    game_id=game.id,
+                    user_id=user_id,
+                    guild_id=self.channel.guild.id,
+                    score=score,
+                    finished_at=now
+                )
+                doc_res = result_obj.model_dump(by_alias=True, exclude_unset=True)
+                bulk_docs.append(doc_res)
 
-        bulk_docs = []
-        for player, score in self.scores.items():
-            user_id = player.id if hasattr(player, "id") else player
-            result_obj = ResultModel(
-                game_id=game.id,
-                user_id=user_id,
-                guild_id=self.channel.guild.id,
-                score=score,
-                finished_at=now
-            )
-            doc_res = result_obj.model_dump(by_alias=True, exclude_unset=True)
-            bulk_docs.append(doc_res)
-
-        if bulk_docs:
-            await results_coll.insert_many(bulk_docs)
+            if bulk_docs:
+                await results_coll.insert_many(bulk_docs)
+        except Exception as e:
+            self.cog.bot.log(message=e, name="MongoDB error", level=ERROR)
 
     async def __save_state(self):
         key=f"quiz_session:{self.channel.guild.id}:{self.channel.id}"
@@ -377,7 +380,7 @@ class QuizSession:
 
     async def __remove_state(self):
         key = f"quiz_session:{self.channel.guild.id}:{self.channel.id}"
-        await self.cog.redis_helper.safe_delete(key)
+        await self.cog.redis.safe_delete(key)
 
     @classmethod
     async def from_state(cls, raw_data, cog, bot):
