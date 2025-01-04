@@ -10,6 +10,8 @@ from bot_modules.join_view import JoinQuizView
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List
 import motor.motor_asyncio
+from bot_utils.RedisHelper import RedisHelper
+from bot import BotClass
 
 class MembersListTransformer(app_commands.Transformer):
     async def transform(self, interaction: discord.Interaction, value: str) -> List[discord.Member]:
@@ -36,17 +38,52 @@ class MembersListTransformer(app_commands.Transformer):
         return members
 
 class QuizCog(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot:BotClass):
         self.bot = bot
         self.active_games = {}
         self.active_join_views = {}
         self.db = self.bot.db
         self.fs = motor.motor_asyncio.AsyncIOMotorGridFSBucket(self.db)
+        self.redis = RedisHelper(self.bot.redis)
+        self.bot.loop.create_task(self.on_ready())
 
 
-    @commands.Cog.listener()
     async def on_ready(self):
-        print("QuizCog załadowany.")
+        await self.bot.wait_until_ready()
+        print(list(self.bot.shards.keys()))
+        await self.restore_sessions()
+
+    async def restore_sessions(self):
+        pattern = "quiz_session:*"
+        keys = await self.redis.safe_keys(pattern)
+        if keys is None:
+            return
+        for key in keys:
+            parts = key.split(":")
+            if len(parts) != 3:
+                continue
+
+            guild_id = int(parts[1])
+            channel_id = int(parts[2])
+
+            inst_shards = list(self.bot.shards.keys())
+            total_shards = self.bot.total_shards
+            guild_shard = (guild_id >> 22) % total_shards
+            if guild_shard not in inst_shards:
+                continue
+
+            data = await self.redis.safe_get(key)
+            if data is None:
+                continue
+            session = await QuizSession.from_state(data,self,self.bot)
+
+            game_key = (guild_id, channel_id)
+            self.active_games[game_key] = session
+            await session.send_question()
+
+
+
+
 
     @commands.Cog.listener()
     async def on_message_delete(self, message):
@@ -109,6 +146,7 @@ class QuizCog(commands.Cog):
 
         if not quiz:
             await ctx.response.send_message("Brak skonfigurowanego quizu dla tego serwera.", ephemeral=True)
+
             return
 
         join_view = JoinQuizView(timeout=10, cog=self, game_key=game_key, gamestarter=ctx.user, allowed_users=allowed_users)

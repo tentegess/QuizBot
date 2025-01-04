@@ -6,7 +6,8 @@ import os
 from dotenv import load_dotenv
 from config.config import db
 import asyncio
-from bot_utils.utils import set_logger
+from bot_utils.utils import set_logger, calc_shards
+from redis import asyncio as aioredis
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -14,11 +15,13 @@ intents.guilds = True
 intents.members = True
 
 
-class BotClass(commands.Bot):
-    def __init__(self):
-        super().__init__(command_prefix="!", intents=intents)
+class BotClass(commands.AutoShardedBot):
+    def __init__(self, shards, total_shards):
+        super().__init__(command_prefix="!", intents=intents, shard_ids=shards, shard_count=total_shards)
         self.ipc2 = Server(self, secret_key='test')
         self.db = db
+        self.redis = aioredis.from_url(os.environ.get("REDIS_CONNECTION"), decode_responses=True)
+        self.total_shards = total_shards
 
     def log(self, message, name, level, **kwargs):
         self.logger.name = name
@@ -73,6 +76,13 @@ class BotClass(commands.Bot):
 
 if __name__ == "__main__":
     load_dotenv()
-    bot = BotClass()
+    inst_index = int(os.environ.get("INSTANCE_INDEX",0))
+    total_shards = int(os.environ.get("TOTAL_SHARDS",1))
+    total_instances = int(os.environ.get("TOTAL_INSTANCES",1))
+    try:
+        inst_shards = calc_shards(inst_index, total_instances, total_shards)
+    except Exception as e:
+        print(e)
+    bot = BotClass(inst_shards, total_shards)
     bot.logger, console_handler = set_logger()
     bot.run(os.environ.get('DC_TOKEN'), log_handler=console_handler, log_level=logging.DEBUG)

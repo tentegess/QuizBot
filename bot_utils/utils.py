@@ -42,3 +42,31 @@ def get_row(anslen, i):
             return i // 2
     else:
             return i
+
+
+def calc_shards(inst_index, total_inst, total_shards):
+    if total_inst > total_shards:
+        raise ValueError(f"Error: Liczba instancji ({total_inst}) nie może przekraczać liczby shardów ({total_shards}).")
+
+    if inst_index >= total_inst:
+        raise ValueError(f"Error: Przekroczono liczbę zadeklarowanych instancji: {total_inst}.")
+
+    if total_inst == total_shards:
+        start_shard = inst_index
+        end_shard = inst_index
+    else:
+        base_shards_per_instance = total_shards // total_inst
+        extra_shards = total_shards % total_inst
+
+        if inst_index < extra_shards:
+            start_shard = inst_index * (base_shards_per_instance + 1)
+            end_shard = start_shard + base_shards_per_instance
+        else:
+            start_shard = inst_index * base_shards_per_instance + extra_shards
+            end_shard = start_shard + base_shards_per_instance - 1
+
+    shard_ids = list(range(start_shard, end_shard + 1))
+    if not shard_ids:
+        raise ValueError(
+             f"Error: Instancja {inst_index} nie ma przypisanych shardów.")
+    return shard_ids

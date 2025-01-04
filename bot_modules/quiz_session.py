@@ -1,5 +1,6 @@
 import io
 
+import bson
 import discord
 import asyncio
 from datetime import datetime, timedelta, timezone
@@ -7,6 +8,8 @@ from model.game_model import GameModel
 from model.resut_model import ResultModel
 from model.quiz_model import QuizModel
 from bot_utils.utils import get_row
+
+import json
 
 class QuizSession:
     def __init__(self, quiz:QuizModel, channel, cog, players, message, game_starter, correct_answer_display_time=5, scoreboard_display_time=5
@@ -19,7 +22,6 @@ class QuizSession:
         self.players = players
         self.current_question_index = 0
         self.scores = {}
-        #self.player_answers = {}
         self.answered_users = set()
         self.kicked_players = set()
 
@@ -127,23 +129,11 @@ class QuizSession:
 
             answer_view = discord.ui.View()
 
-            anslen = sum(len(opt.option) for opt in question.options)
-            max_len = max(len(opt.option) for opt in question.options)
-
-            if anslen < 35:
-                def row_of(i):
-                    return i // 4
-            elif anslen < 70:
-                def row_of(i):
-                    return i // 2
-            else:
-                def row_of(i):
-                    return i
 
             for idx, option in enumerate(question.options):
                 style = discord.ButtonStyle.green if idx == correct_index else discord.ButtonStyle.danger
 
-                button = discord.ui.Button(label=option.option.center(max_len,"\u3000"), style=style, disabled=True,
+                button = discord.ui.Button(label=option.option, style=style, disabled=True,
                                            row=get_row(len(option.option),idx))
                 answer_view.add_item(button)
 
@@ -164,14 +154,16 @@ class QuizSession:
                 await self.end_game()
             else:
                 await self.show_scoreboard(next_question_in=self.scoreboard_display_time)
+                await self.show_scoreboard(next_question_in=self.scoreboard_display_time)
                 await asyncio.sleep(self.scoreboard_display_time)
                 self.current_question_index += 1
+                await self.__save_state()
                 await self.send_question()
         finally:
             self.is_processing_question = False
 
     def create_answer_callback(self, selected_index):
-        async def callback(interaction):
+        async def callback(interaction:discord.Interaction):
             async def callback_mess(embed):
                 if self.send_private_messages:
                     await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -311,6 +303,7 @@ class QuizSession:
         await self.channel.send(embed=embed, view=view)
 
         game_key = (self.channel.guild.id, self.channel.id)
+        await self.__remove_state()
         if game_key in self.cog.active_games:
             del self.cog.active_games[game_key]
 
@@ -325,6 +318,7 @@ class QuizSession:
         self.question_task = None
 
         game_key = (self.channel.guild.id, self.channel.id)
+        await self.__remove_state()
         if game_key in self.cog.active_games:
             del self.cog.active_games[game_key]
 
@@ -357,3 +351,95 @@ class QuizSession:
 
         if bulk_docs:
             await results_coll.insert_many(bulk_docs)
+
+    async def __save_state(self):
+        key=f"quiz_session:{self.channel.guild.id}:{self.channel.id}"
+        data = {
+            "guild_id": self.channel.guild.id if self.channel and self.channel.guild else None,
+            "channel_id": self.channel.id if self.channel else None,
+            "quiz_data": self.quiz.model_dump(),
+            "players_id": [p.id for p in self.players],
+            "current_question_index": self.current_question_index,
+            "scores": {int(p.id): s for (p, s) in self.scores.items()},
+            "answered_users": list(self.answered_users),
+            "kicked_players": list(self.kicked_players),
+            "streaks": {int(p.id): st for (p, st) in self.streaks.items()},
+            "correct_answer_display_time": self.correct_answer_display_time,
+            "scoreboard_display_time": self.scoreboard_display_time,
+            "send_private_messages": self.send_private_messages,
+            "game_ended": self.game_ended,
+            "game_starter_id": self.game_starter.id if self.game_starter else None,
+            "message_id": self.message.id if self.message else None,
+        }
+
+        raw_data = json.dumps(data, default=bson.json_util.default)
+        await self.cog.redis.safe_set(key, raw_data, ex=300)
+
+    async def __remove_state(self):
+        key = f"quiz_session:{self.channel.guild.id}:{self.channel.id}"
+        await self.cog.redis_helper.safe_delete(key)
+
+    @classmethod
+    async def from_state(cls, raw_data, cog, bot):
+        data = json.loads(raw_data, object_hook=bson.json_util.object_hook)
+        guild_id = data["guild_id"]
+        channel_id = data["channel_id"]
+        guild = bot.get_guild(guild_id)
+        channel = guild.get_channel(channel_id) if guild else None
+
+        quiz = QuizModel(**data["quiz_data"])
+
+        players_id = data["players_id"]  # list[int]
+        players = []
+        if channel:
+            for uid in players_id:
+                mem = channel.guild.get_member(uid)
+                if mem:
+                    players.append(mem)
+
+        session = cls(
+            quiz=quiz,
+            channel=channel,
+            cog=cog,
+            players=players,
+            message=None,  # tymczasowo
+            game_starter=None,
+            correct_answer_display_time=data["correct_answer_display_time"],
+            scoreboard_display_time=data["scoreboard_display_time"],
+            send_private_messages=data["send_private_messages"],
+        )
+        session.current_question_index = data["current_question_index"]
+        session.game_ended = data["game_ended"]
+        session.scores = {}
+        for (uid_str, score_val) in data["scores"].items():
+            member = channel.guild.get_member(int(uid_str))
+            if member:
+                session.scores[member] = score_val
+
+        session.answered_users = set(data["answered_users"])
+        session.kicked_players = set(data["kicked_players"])
+        session.streaks = {}
+        for (uid_str, streak_val) in data["streaks"].items():
+            member = channel.guild.get_member(int(uid_str))
+            if member:
+                session.streaks[member] = streak_val
+
+        message_id = data.get("message_id")
+        if message_id and channel:
+            try:
+                msg = await channel.fetch_message(message_id)
+            except discord.NotFound:
+                msg = None
+            except discord.HTTPException:
+                msg = None
+
+        if msg is None:
+            msg = await channel.send("Odtwarzam quiz...")
+        session.message = msg
+
+        starter_id = data.get("game_starter_id")
+        if starter_id and guild:
+            starter_member = guild.get_member(starter_id)
+            session.game_starter = starter_member
+
+        return session
