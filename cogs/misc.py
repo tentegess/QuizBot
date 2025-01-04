@@ -1,4 +1,5 @@
 from datetime import timedelta, datetime, timezone
+from logging import ERROR
 
 import discord
 from discord.ext import commands
@@ -55,10 +56,17 @@ class MiscCog(commands.Cog):
             {"$limit": limit}
         ]
 
-        results_coll = self.db["Results"]
-        docs = await results_coll.aggregate(pipeline).to_list(None)
+        try:
+            await interaction.response.defer()
+            results_coll = self.db["Results"]
+            docs = await results_coll.aggregate(pipeline).to_list(None)
+        except Exception as e:
+            self.bot.log(message=e, name="MongoDB error", level=ERROR)
+            await interaction.followup.send("Wystąpił problem z pobraniem wyników spróbuj ponownie później", ephemeral=True)
+            return
+
         if not docs:
-            await interaction.response.send_message("Brak wyników w tym okresie.", ephemeral=True)
+            await interaction.followup.send("Brak wyników w tym okresie.", ephemeral=True)
             return
 
         embed = discord.Embed(
@@ -78,7 +86,7 @@ class MiscCog(commands.Cog):
             rank += 1
 
         embed.description = description
-        await interaction.response.send_message(embed=embed, ephemeral=False)
+        await interaction.followup.send(embed=embed, ephemeral=False)
 
 async def setup(bot):
     await bot.add_cog(MiscCog(bot))

@@ -1,4 +1,6 @@
 import logging
+import sys
+
 from discord.ext.ipc import Server, ClientPayload
 from discord.ext import commands
 import discord
@@ -29,6 +31,11 @@ class BotClass(commands.AutoShardedBot):
 
     async def on_ready(self):
         print(f'Zalogowano jako {self.user.name}')
+        try:
+            await self.redis.ping()
+            print("Połączono z bazą redis")
+        except Exception as e:
+            print(e)
 
         for filename in os.listdir('./cogs'):
             if filename.endswith('.py'):
@@ -83,6 +90,7 @@ if __name__ == "__main__":
         inst_shards = calc_shards(inst_index, total_instances, total_shards)
     except Exception as e:
         print(e)
+        sys.exit(1)
     bot = BotClass(inst_shards, total_shards)
     bot.logger, console_handler = set_logger()
     bot.run(os.environ.get('DC_TOKEN'), log_handler=console_handler, log_level=logging.DEBUG)
