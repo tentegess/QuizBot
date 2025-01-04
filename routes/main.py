@@ -196,10 +196,8 @@ async def save_quiz(
             file_idx += 1
         else:
             if question.get('image_url'):
-                try:
                     await fs.delete(ObjectId(question['image_url']))
-                except Exception as e:
-                    print(f"Błąd podczas usuwania zdjęcia: {e}")
+
             image_url = None
 
         options = [

@@ -41,14 +41,14 @@ function createQuestionCard() {
                             <i class="bi bi-search text-white"></i>
                         </span>
                         
-                        <input type="text" class="form-control color-m border-dark text-white" placeholder="Treść Pytania">
+                        <input type="text" class="form-control color-m border-dark text-white" placeholder="Treść Pytania" maxlength="256">
                         <span class="input-group-text color-m border-dark text-danger clickable-icon delete-icon">
                             <i class="bi bi-trash"></i>
                         </span>
                     </div>
 
                     <div class="input-group mb-2 border-custom">
-                        <input type="text" class="form-control text-white color-m border-dark" placeholder="Treść Odpowiedzi">
+                        <input type="text" class="form-control text-white color-m border-dark" placeholder="Treść Odpowiedzi" maxlength="60">
                         <div class="input-group-text text-white color-m border-dark">
                             <input type="checkbox" aria-label="Correct Answer" class="me-2 answer-checkbox">
                             Odpowiedź
@@ -58,7 +58,7 @@ function createQuestionCard() {
                         </span>
                     </div>
                     <div class="input-group mb-2 border-custom">
-                        <input type="text" class="form-control text-white color-m border-dark" placeholder="Treść Odpowiedzi">
+                        <input type="text" class="form-control text-white color-m border-dark" placeholder="Treść Odpowiedzi" maxlength="60">
                         <div class="input-group-text text-white color-m border-dark">
                             <input type="checkbox" aria-label="Correct Answer" class="me-2 answer-checkbox">
                             Odpowiedź
@@ -108,7 +108,7 @@ function addAnswer(questionCard) {
     newAnswerGroup.classList.add('input-group', 'mb-2', 'border-custom');
 
     newAnswerGroup.innerHTML = `
-        <input type="text" class="form-control text-white color-m border-dark" placeholder="Treść Odpowiedzi">
+        <input type="text" class="form-control text-white color-m border-dark" placeholder="Treść Odpowiedzi" maxlength="60">
         <div class="input-group-text text-white color-m border-dark">
             <input type="checkbox" aria-label="Correct Answer" class="me-2 answer-checkbox">
             Odpowiedź

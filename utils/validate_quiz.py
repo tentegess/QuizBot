@@ -2,14 +2,14 @@ from PIL import Image
 from io import BytesIO
 
 def validate_quiz_data(title: str, questions_data: list):
-    if not title or title.strip() == "":
+    if not title or title.strip() == "" or len(title) > 200:
         return False
 
     if len(questions_data) < 1:
         return False
 
     for idx, question in enumerate(questions_data):
-        if not question.get('content'):
+        if not question.get('content') or len(question['content']) > 256:
             return False
 
         answers = question.get('answers', [])
@@ -21,7 +21,7 @@ def validate_quiz_data(title: str, questions_data: list):
             return False
 
         for ans_idx, answer in enumerate(answers):
-            if not answer.get('content'):
+            if not answer.get('content') or len(answer['content']) > 60:
                 return False
         return True
 

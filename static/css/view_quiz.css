@@ -3,3 +3,7 @@ input[readonly] {
     user-select: none;
     pointer-events: none;
 }
+
+textarea {
+    resize: none !important;
+}

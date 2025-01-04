@@ -52,8 +52,7 @@
 <div class="container p-4 color-d rounded border border-dark mb-4">
     <form>
         <div class="mb-3">
-            <input type="text" class="form-control text-white color-m border-dark" id="quizTitle"
-                   value="{{ quiz.title }}" placeholder="Nazwa quizu" readonly>
+            <textarea class="form-control text-white color-m border-dark remove-resize" readonly>{{ quiz.title }}</textarea>
         </div>
         <input type="hidden" id="quizId" value="{{ quiz._id }}">
 
@@ -73,8 +72,7 @@
                                         <i class="bi bi-search text-white"></i>
                                     </span>
                                 {% endif %}
-                                <input type="text" class="form-control color-m border-dark text-white"
-                                       value="{{ question.question }}" placeholder="Treść Pytania" readonly>
+                                <textarea class="form-control color-m border-dark text-white remove-resize" readonly>{{ question.question }}</textarea>
                             </div>
 
                             {% for option in question.options %}
