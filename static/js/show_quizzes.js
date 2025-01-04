@@ -26,19 +26,25 @@ function loadPage(page) {
 
                                 <div class="d-flex justify-content-between align-items-center">
                                     <div class="d-flex gap-3">
-                                        <span class="text-light clickable-icon" title="Podgląd">
+                                        <a href="/quiz/view/${quiz._id}" class="text-light clickable-icon" title="Podgląd">
                                             <i class="bi bi-eye"></i>
-                                        </span>
-
-                                    <a href="/quiz/edit/${quiz._id}" class="text-light clickable-icon" title="Edycja">
-                                        <i class="bi bi-pencil"></i>
-                                    </a>
-
+                                        </a>
+                                    ${
+                                        quiz.is_editable
+                                            ? `<a href="/quiz/edit/${quiz._id}" class="text-light clickable-icon" title="Edycja">
+                                                 <i class="bi bi-pencil"></i>
+                                               </a>`
+                                            : ''
+                                    }
 
                                     </div>
-                                    <span class="text-light clickable-icon" title="Usuń" onclick="confirmDelete('${quiz._id}')">
-                                        <i class="bi bi-trash text-danger"></i>
-                                    </span>
+                                    ${
+                                        quiz.is_editable
+                                            ? `<span class="text-light clickable-icon" title="Usuń" onclick="confirmDelete('${quiz._id}')">
+                                                <i class="bi bi-trash text-danger"></i>
+                                            </span>`
+                                            : ''
+                                    }                                    
                                 </div>
                             </div>
                         </div>
