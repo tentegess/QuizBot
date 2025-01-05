@@ -19,7 +19,7 @@ from utils.auth import Oauth, api
 from utils.validate_session import validate_session_without_data, validate_session_with_data
 from utils.validate_quiz import validate_quiz_data, img_scaling
 from utils.generate_unique_id import get_unique_access_code
-from discord.ext.ipc import Client
+from utils.discord_api import discord_api
 from config.config import session_collection, quiz_collection, db, user_collection, game_collection
 import json
 from typing import List, Optional
@@ -35,11 +35,15 @@ load_dotenv()
 main_router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 print("Main routes initialized")
-ipc = Client(secret_key="test")
 
 @main_router.on_event("startup")
 async def on_startup():
     await api.setup()
+    await discord_api.setup()
+
+@main_router.on_event("shutdown")
+async def shutdown_event():
+    await discord_api.close()
 
 
 @main_router.get("/")
@@ -49,11 +53,13 @@ async def home(request: Request):
     if session_id and session:
         return RedirectResponse(url="/guilds")
 
-    guild_count = await ipc.request("guild_count")
+    guilds = await discord_api.fetch_guilds()
+    guild_count = len(guilds)
+
     return templates.TemplateResponse("index.html", {
         "request": request,
         "discord_url": api.discord_login_url,
-        "count": guild_count.response
+        "count": guild_count
     })
 
 @main_router.get("/login")
@@ -61,7 +67,7 @@ async def login(code: str):
     result = await api.get_token_response(code)
 
     if result is None:
-        raise HTTPException(status_code=401, detail="brak uprawnień")
+        raise HTTPException(status_code=401, detail="Brak uprawnień")
 
     token, refresh_token, expires_in = result
     user = await api.get_user(token)
@@ -106,11 +112,11 @@ async def guilds(request: Request, data: dict = Depends(validate_session_with_da
     user = data['user']
     token = session.get("token")
     user_guilds = await api.get_guilds(token)
-    bot_guilds = await ipc.request("bot_guilds")
+    bot_guilds = await discord_api.fetch_guilds()
     perms = []
 
     for guild in user_guilds:
-        if guild["id"] in bot_guilds.response["data"]:
+        if guild["id"] in bot_guilds:
             guild["url"] = "/server/" + str(guild["id"])
         else:
             guild["url"] = f"https://discord.com/oauth2/authorize?client_id=1308514751026036847&guild_id={guild['id']}"
@@ -135,15 +141,29 @@ async def guilds(request: Request, data: dict = Depends(validate_session_with_da
         })
 
 @main_router.get("/server/{guild_id}")
-async def server(request: Request, guild_id: int, _: None = Depends(validate_session_without_data)):
-    stats = await ipc.request("guild_stats", guild_id=guild_id)
+async def server(request: Request, guild_id: int, data: dict = Depends(validate_session_with_data)):
+    session = data['session']
+    user = data['user']
+    token = session.get("token")
+
+    stats = await discord_api.fetch_guild_name(guild_id)
+    user_guilds = await api.get_guilds(token=session.get("token"))
+    guild = next((g for g in user_guilds if g["id"] == str(guild_id)), None)
+
+    if guild is None:
+        return {"error": "Brak uprawnień"}
+
+    is_admin = discord.Permissions(int(guild["permissions"])).administrator
+    is_owner = guild["owner"]
+
+    if not is_admin and not is_owner:
+        return {"error": "Brak uprawnień"}
 
     return templates.TemplateResponse(
         "server.html",
         {
             "request": request,
-            "name": stats.response["name"],
-            "member_count": stats.response["member_count"],
+            "name": stats["name"],
             "id": guild_id,
         })
 
@@ -171,9 +191,9 @@ async def save_quiz(
         quiz_id = ObjectId(quiz_id)
         quiz = await quiz_collection.find_one({"_id": quiz_id})
         if not quiz:
-            raise HTTPException(status_code=404, detail="Quiz not found")
+            raise HTTPException(status_code=404, detail="Quiz nie istnieje")
         if quiz["user_id"] != int(user_id):
-            raise HTTPException(status_code=401, detail="brak uprawnień")
+            raise HTTPException(status_code=401, detail="Brak uprawnień")
 
     questions_data = json.loads(questions)
     if not validate_quiz_data(title, questions_data):
@@ -332,9 +352,9 @@ async def delete_quiz(quiz_id: str, data: dict = Depends(validate_session_with_d
 
     quiz = await quiz_collection.find_one({"_id": quiz_object_id})
     if not quiz:
-        raise HTTPException(status_code=404, detail="Quiz not found")
+        raise HTTPException(status_code=404, detail="Quiz nie istnieje")
     if quiz["user_id"] != int(user_id):
-        raise HTTPException(status_code=401, detail="brak uprawnień")
+        raise HTTPException(status_code=401, detail="Brak uprawnień")
 
     await quiz_collection.delete_one({"_id": quiz_object_id})
 
@@ -351,9 +371,9 @@ async def get_quiz(request: Request, quiz_id: str, data: dict = Depends(validate
         )
 
         if not quiz:
-            raise HTTPException(status_code=404, detail="Quiz not found")
+            raise HTTPException(status_code=404, detail="Quiz nie istnieje")
         if quiz["user_id"] != int(user_id):
-            raise HTTPException(status_code=401, detail="brak uprawnień")
+            raise HTTPException(status_code=401, detail="Brak uprawnień")
 
         quiz["_id"] = str(quiz["_id"])
         for question in quiz["questions"]:
@@ -367,7 +387,7 @@ async def get_quiz(request: Request, quiz_id: str, data: dict = Depends(validate
             })
     except Exception as e:
         print(f"Error occurred: {e}")
-        raise HTTPException(status_code=404, detail="Quiz not found")
+        raise HTTPException(status_code=404, detail="Quiz nie istnieje")
 
 @main_router.get("/quiz/image/{img_id}")
 async def get_image(img_id: str):
@@ -376,7 +396,7 @@ async def get_image(img_id: str):
         file_data = await fs.open_download_stream(ObjectId(img_id))
         return StreamingResponse(file_data, media_type="image/png")
     except Exception as e:
-        raise HTTPException(status_code=404, detail=f"Image not found: {str(e)}")
+        raise HTTPException(status_code=404, detail=f"Zdjęcie nie istnieje: {str(e)}")
 
 @main_router.get("/quiz/view/{quiz_id}")
 async def view_quiz(request: Request, quiz_id: str, data: dict = Depends(validate_session_with_data)):
@@ -390,9 +410,9 @@ async def view_quiz(request: Request, quiz_id: str, data: dict = Depends(validat
         )
 
         if not quiz:
-            raise HTTPException(status_code=404, detail="Quiz not found")
+            raise HTTPException(status_code=404, detail="Quiz nie istnieje")
         if quiz["is_private"] and quiz["user_id"] != user_id:
-            raise HTTPException(status_code=401, detail="brak uprawnień")
+            raise HTTPException(status_code=401, detail="Brak uprawnień")
 
         quiz["_id"] = str(quiz["_id"])
         time_zone = pytz.timezone('Europe/Warsaw')
@@ -414,13 +434,13 @@ async def view_quiz(request: Request, quiz_id: str, data: dict = Depends(validat
             })
     except Exception as e:
         print(f"Error occurred: {e}")
-        raise HTTPException(status_code=404, detail="Quiz not found")
+        raise HTTPException(status_code=404, detail="Quiz nie istnieje")
 
 @main_router.get("/logout")
 async def logout(session_id: str = Cookie(None)):
     session = await session_collection.find_one({"_id": ObjectId(session_id)})
     if not session_id or not session:
-        raise HTTPException(status_code=401, detail="brak uprawnień")
+        raise HTTPException(status_code=401, detail="Brak uprawnień")
 
     token = session.get("token")
 
