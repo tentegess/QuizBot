@@ -321,6 +321,11 @@ saveButton.addEventListener('click', () => {
     const questions = [];
     const formData = new FormData();
 
+    const quizPrivacyElement = document.getElementById('quizPrivacy');
+    const isPrivate = quizPrivacyElement.checked;
+
+    formData.append('is_private', isPrivate);
+
     let isValid = true;
 
     isValid = validateInput(quizTitleElement) && isValid;

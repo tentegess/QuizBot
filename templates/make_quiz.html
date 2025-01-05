@@ -11,8 +11,12 @@
 {% block content %}
 <div class="container p-4 color-d rounded border border-dark mb-4">
     <form>
-        <div class="mb-3">
-            <input type="text" class="form-control text-white color-m border-dark" id="quizTitle" placeholder="Nazwa quizu" maxlength="200">
+        <div class="mb-3 d-flex align-items-center justify-content-between">
+            <input type="text" class="form-control text-white color-m border-dark" id="quizTitle" placeholder="Nazwa quizu" maxlength="200" style="flex: 1;">
+            <div class="form-check form-switch ms-3">
+                <input class="form-check-input" type="checkbox" id="quizPrivacy">
+                <label class="form-check-label text-white" for="quizPrivacy">Prywatny</label>
+            </div>
         </div>
 
         <div id="questionsContainer">

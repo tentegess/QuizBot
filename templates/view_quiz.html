@@ -12,7 +12,7 @@
 {% block content %}
 <div class="container p-4 color-d rounded border border-dark mb-5">
     <div class="row mb-4">
-        <div class="col-md-6">
+        <div class="col-md-4">
             <div class="card border-dark text-white">
                 <div class="card-header">Autor</div>
                 <div class="card-body color-m text-truncate">
@@ -20,9 +20,21 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-6">
+        <div class="col-md-4">
             <div class="card border-dark text-white">
-                <div class="card-header">Kod dostępu do gry</div>
+                <div class="card-header">Dostępność quizu</div>
+                <div class="card-body color-m">
+                    {% if quiz.is_private %}
+                        Prywatny
+                    {% else %}
+                        Publiczny
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-dark text-white">
+                <div class="card-header">Kod dostępu do quizu</div>
                 <div class="card-body color-m">
                     {{ quiz.access_code }}
                 </div>
@@ -30,7 +42,15 @@
         </div>
     </div>
     <div class="row">
-        <div class="col-md-6">
+        <div class="col-md-4">
+            <div class="card border-dark text-white">
+                <div class="card-header">Ilość rozegranych gier</div>
+                <div class="card-body color-m text-truncate">
+                    {{ game_count }}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
             <div class="card border-dark text-white">
                 <div class="card-header">Data utworzenia</div>
                 <div class="card-body color-m">
@@ -38,7 +58,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-6">
+        <div class="col-md-4">
             <div class="card border-dark text-white">
                 <div class="card-header">Data ostatniej modyfikacji</div>
                 <div class="card-body color-m">
@@ -49,10 +69,13 @@
     </div>
 </div>
 
+
 <div class="container p-4 color-d rounded border border-dark mb-4">
     <form>
         <div class="mb-3">
-            <textarea class="form-control text-white color-m border-dark remove-resize" readonly>{{ quiz.title }}</textarea>
+            <div class="form-control text-wrap overflow-hidden text-break color-m border-dark text-white">
+                {{ quiz.title }}
+            </div>
         </div>
         <input type="hidden" id="quizId" value="{{ quiz._id }}">
 
@@ -72,7 +95,7 @@
                                         <i class="bi bi-search text-white"></i>
                                     </span>
                                 {% endif %}
-                                <textarea class="form-control color-m border-dark text-white remove-resize" readonly>{{ question.question }}</textarea>
+                                <div class="form-control color-m border-dark text-white">{{ question.question }} </div>
                             </div>
 
                             {% for option in question.options %}
@@ -101,7 +124,5 @@
     tooltips.forEach(tooltip => {
         new bootstrap.Tooltip(tooltip);
     });
-});
-
 </script>
 {% endblock %}

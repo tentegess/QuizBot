@@ -73,5 +73,14 @@ input[type="checkbox"]:checked {
   cursor: pointer;
 }
 
+.form-check-input {
+    transform: scale(1.2);
+}
 
+label {
+    user-select: none;
+}
 
+.tooltip {
+    opacity: 1 !important;
+}

@@ -20,7 +20,7 @@ from utils.validate_session import validate_session_without_data, validate_sessi
 from utils.validate_quiz import validate_quiz_data, img_scaling
 from utils.generate_unique_id import get_unique_access_code
 from discord.ext.ipc import Client
-from config.config import session_collection, quiz_collection, db, user_collection
+from config.config import session_collection, quiz_collection, db, user_collection, game_collection
 import json
 from typing import List, Optional
 from motor.motor_asyncio import AsyncIOMotorGridFSBucket
@@ -161,7 +161,8 @@ async def save_quiz(
         questions: str = Form(...),
         files: Optional[List[UploadFile]] = File(None),
         data: dict = Depends(validate_session_with_data),
-        quiz_id: Optional[str] = Form(None)
+        quiz_id: Optional[str] = Form(None),
+        is_private: bool = Form(False)
 ):
     user = data['user']
     user_id = user.get("id")
@@ -219,7 +220,8 @@ async def save_quiz(
             {"$set": {
                 'title': title,
                 'updated_at': datetime.now(timezone.utc),
-                'questions': saved_questions
+                'questions': saved_questions,
+                'is_private': is_private
             }},
         )
     else:
@@ -231,7 +233,8 @@ async def save_quiz(
             updated_at=datetime.now(timezone.utc),
             user_id=int(user_id),
             questions=saved_questions,
-            access_code=access_code
+            access_code=access_code,
+            is_private = is_private
         )
 
         quiz_dict = quiz.model_dump()
@@ -252,9 +255,14 @@ async def get_quizzes(request: Request, _: None = Depends(validate_session_witho
 @main_router.get("/quiz/data")
 async def get_quizzes_data(page: int = 1, sort: str = "title_asc", search: str = "", data: dict = Depends(validate_session_with_data)):
     user = data['user']
-    user_id = user.get("id")
+    user_id = int(user.get("id"))
 
-    filters = {}
+    filters = {
+        "$or": [
+            {"is_private": False},
+            {"is_private": True, "user_id": user_id}
+        ]
+    }
     if search:
         filters["title"] = {"$regex": search, "$options": "i"}
 
@@ -291,7 +299,7 @@ async def get_quizzes_data(page: int = 1, sort: str = "title_asc", search: str =
     quizzes = []
     async for quiz in quizzes_cursor:
         is_editable = False
-        if quiz["user_id"] == int(user_id):
+        if quiz["user_id"] == user_id:
             is_editable = True
         questions_count = len(quiz["questions"])
 
@@ -383,6 +391,8 @@ async def view_quiz(request: Request, quiz_id: str, data: dict = Depends(validat
 
         if not quiz:
             raise HTTPException(status_code=404, detail="Quiz not found")
+        if quiz["is_private"] and quiz["user_id"] != user_id:
+            raise HTTPException(status_code=401, detail="brak uprawnień")
 
         quiz["_id"] = str(quiz["_id"])
         time_zone = pytz.timezone('Europe/Warsaw')
@@ -392,12 +402,15 @@ async def view_quiz(request: Request, quiz_id: str, data: dict = Depends(validat
         for question in quiz["questions"]:
             question["image_url"] = f"/quiz/image/{str(question.get('image_url'))}" if question.get('image_url') else None
 
+        game_count = await game_collection.count_documents({"quiz_code": quiz["access_code"]})
+
         return templates.TemplateResponse(
             "view_quiz.html",
             {
                 "request": request,
                 "quiz": quiz,
-                "author": user["username"]
+                "author": user["username"],
+                "game_count": game_count
             })
     except Exception as e:
         print(f"Error occurred: {e}")
