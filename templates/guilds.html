@@ -11,18 +11,24 @@
 {% block content %}
 <div class="container">
     <div class="row g-4">
-        {% for guild in guilds %}
-        <div class="col-6 col-sm-4 col-md-3 col-lg-2">
-            <a href="{{ guild.url }}" class="text-decoration-none guild-link position-relative d-block">
-                <div class="rounded-circle overflow-hidden position-relative guild-image-container">
-                    <img src="{{ guild.icon }}" class="img-fluid w-100 h-100 guild-image" alt="{{ guild.name }}">
-                    <div class="overlay d-flex align-items-center justify-content-center">
-                        <span class="text-white fw-bold">{{ guild.name }}</span>
+        {% if guilds %}
+            {% for guild in guilds %}
+            <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+                <a href="{{ guild.url }}" class="text-decoration-none guild-link position-relative d-block">
+                    <div class="rounded-circle overflow-hidden position-relative guild-image-container">
+                        <img src="{{ guild.icon }}" class="img-fluid w-100 h-100 guild-image" alt="{{ guild.name }}">
+                        <div class="overlay d-flex align-items-center justify-content-center">
+                            <span class="text-white fw-bold">{{ guild.name }}</span>
+                        </div>
                     </div>
-                </div>
-            </a>
+                </a>
+            </div>
+            {% endfor %}
+        {% else %}
+        <div class="col-12 text-center">
+            <p class="text-white fs-3 fw-bold">Nie znaleziono serwerów do wyświetlenia.</p>
         </div>
-        {% endfor %}
+    {% endif %}
     </div>
 </div>
 {% endblock %}

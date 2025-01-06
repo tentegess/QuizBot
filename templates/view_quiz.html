@@ -120,9 +120,10 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-    const tooltips = document.querySelectorAll('[data-bs-toggle="tooltip"]');
-    tooltips.forEach(tooltip => {
-        new bootstrap.Tooltip(tooltip);
+        const tooltips = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+        tooltips.forEach(tooltip => {
+            new bootstrap.Tooltip(tooltip);
+        });
     });
 </script>
 {% endblock %}
