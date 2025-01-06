@@ -6,13 +6,19 @@ from discord.ext import commands
 from discord import app_commands
 
 from typing import Optional
-from bot_utils.utils import guild_only
+from bot_modules.search_view import SearchView
 from enum import Enum
+
+from bot_utils.utils import fetch_quizzes_page, count_quizzes, SortEnum
+
 
 class TimeRange(Enum):
     day = "day"
     week = "week"
     month = "month"
+
+
+
 
 class MiscCog(commands.Cog):
     def __init__(self, bot):
@@ -87,6 +93,42 @@ class MiscCog(commands.Cog):
 
         embed.description = description
         await interaction.followup.send(embed=embed, ephemeral=False)
+
+    @app_commands.command(name="searchquiz", description="Wyszukaj quizy po słowie kluczowym.")
+    @app_commands.describe(keyword="Fraza do wyszukania",
+                           page_size="Liczba quizów na stronę (domyślnie 5)",
+                           sort="Sortowanie wyników (domyślnie od najnowszych)")
+    @app_commands.guild_only()
+    async def search_quiz(self, interaction: discord.Interaction, keyword: str, page_size: Optional[int] = 5, sort:Optional[SortEnum]=SortEnum.created_desc):
+        total = await count_quizzes(self.bot.db, interaction.user.id, keyword)
+        if total == 0:
+            await interaction.response.send_message("Brak wyników dla tej frazy.", ephemeral=True)
+            return
+
+        page = 0
+
+        results = await fetch_quizzes_page(
+            db=self.bot.db,
+            user_id=interaction.user.id,
+            search=keyword,
+            page=page,
+            page_size=page_size,
+            sort=sort,
+        )
+
+        view = SearchView(
+            db=self.bot.db,
+            user_id=interaction.user.id,
+            search=keyword,
+            total_count=total,
+            page=page,
+            page_size=page_size,
+            sort=sort,
+        )
+
+        embed = view.build_embed(results, page)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
 
 async def setup(bot):
     await bot.add_cog(MiscCog(bot))

@@ -1,0 +1,39 @@
+services:
+  web_app:
+    image: quiz-bot
+    command: python fastapi_bot.py
+    env_file:
+      - .env
+    environment:
+      INSTANCE_INDEX: 0
+      TOTAL_INSTANCES: 2
+      TOTAL_SHARDS: 6
+      IPC_PORT: 5000
+    ports:
+      - "5000:5000"
+  bot_ins_1:
+    image: quiz-bot
+    env_file:
+      - .env
+    environment:
+      INSTANCE_INDEX: 0
+      TOTAL_INSTANCES: 2
+      TOTAL_SHARDS: 6
+      IPC_PORT: 5000
+    ports:
+      - "20000:20000"
+  bot_ins_2:
+    image: quiz-bot
+    env_file:
+      - .env
+    environment:
+      INSTANCE_INDEX: 1
+      TOTAL_INSTANCES: 2
+      TOTAL_SHARDS: 6
+      IPC_PORT: 5001
+    ports:
+      - "20001:20000"
+
+networks:
+  botnet:
+    driver: bridge
