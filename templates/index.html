@@ -4,8 +4,12 @@
     <link rel="stylesheet" href="{{ url_for('static', path='css/index.css') }}">
 {% endblock %}
 
+{% block navbar %}
+    {% include "navbar.html" %}
+{% endblock %}
+
 {% block content %}
-<div class="d-flex justify-content-center align-items-center vh-100">
+<div class="d-flex justify-content-center align-items-center container-login">
     <div class="text-center">
         <h1 class="display-1 text-white fw-bold mb-1">Quizbot</h1>
         <p class="fs-4 text-white-50 mb-4">Aktualnie obecny na {{ count }} serwerach Discord</p>

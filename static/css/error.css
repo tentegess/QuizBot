@@ -1,0 +1,20 @@
+    .container {
+        position: relative;
+        min-height: 80vh;
+    }
+
+    .error-code {
+        font-size: 15rem;
+        font-weight: bold;
+        color: rgba(108, 117, 125, 0.8);
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+        line-height: 1;
+    }
+
+    .error-detail {
+        font-size: 2rem;
+        color: white;
+        opacity: 0.8;
+        line-height: 1;
+        margin-top: -0.5rem;
+    }

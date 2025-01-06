@@ -1,3 +1,4 @@
+import asyncio
 import aiohttp
 import os
 from dotenv import load_dotenv
@@ -19,22 +20,27 @@ class DiscordAPI:
         if not self.session:
             self.session = aiohttp.ClientSession()
 
-    async def fetch_guilds(self):
-        async with self.session.get(f"{self.BASE_URL}/users/@me/guilds", headers=self.headers) as response:
+    async def _make_request(self, url: str):
+        async with self.session.get(url, headers=self.headers) as response:
             if response.status == 200:
-                guilds = await response.json()
-                return [guild["id"] for guild in guilds]
-            raise Exception(f"Failed to fetch guilds: {response.status}")
+                return await response.json()
+            elif response.status == 429:
+                retry_after = int(response.headers.get("Retry-After", 1))
+                print(f"Rate limit reached. Retrying in {retry_after} seconds...")
+                await asyncio.sleep(retry_after)
+                return await self._make_request(url)
+            else:
+                raise Exception(f"Request failed with status {response.status}")
+
+    async def fetch_guilds(self):
+        url = f"{self.BASE_URL}/users/@me/guilds"
+        guilds = await self._make_request(url)
+        return [guild["id"] for guild in guilds]
 
     async def fetch_guild_name(self, guild_id: str):
-        async with self.session.get(f"{self.BASE_URL}/guilds/{guild_id}", headers=self.headers) as response:
-            if response.status == 200:
-                guild_data = await response.json()
-
-                return {
-                    "name": guild_data.get("name"),
-                }
-            raise Exception(f"Failed to fetch guild stats: {response.status}")
+        url = f"{self.BASE_URL}/guilds/{guild_id}"
+        guild_data = await self._make_request(url)
+        return {"name": guild_data.get("name")}
 
     async def close(self):
         await self.session.close()

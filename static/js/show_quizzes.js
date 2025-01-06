@@ -5,8 +5,9 @@ function loadPage(page) {
     const sortOption = document.getElementById('sort-select').value;
     const searchQuery = document.getElementById('search-input').value;
     const isOnlyMyQuiz = document.getElementById('isOnlyMyQuizHidden').value;
+    const isUserLogged = document.getElementById('isUserLogged').value;
 
-    fetch(`/quiz/data?page=${page}&sort=${sortOption}&search=${encodeURIComponent(searchQuery)}&is_only_my_quiz=${isOnlyMyQuiz}`)
+    fetch(`/quiz/data?page=${page}&sort=${sortOption}&search=${encodeURIComponent(searchQuery)}&is_only_my_quiz=${isOnlyMyQuiz}&is_user_logged=${isUserLogged}`)
         .then(response => response.json())
         .then(data => {
             const quizList = document.getElementById('quiz-list');

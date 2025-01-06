@@ -1,30 +1,44 @@
 <nav class="navbar navbar-expand-lg nav-c border-bottom border-dark mb-4">
     <div class="container-fluid">
-        <a class="navbar-brand d-flex align-items-center p-0 btn-animation" href="/">
-            <img src="{{ url_for('static', path='images/discord_icon.png') }}" alt="Logo" class="navbar-logo img-animation me-2 img-nav">
-        </a>
+        {% if not is_not_logged %}
+            <a class="navbar-brand d-flex align-items-center p-0 btn-animation" href="/">
+                <img src="{{ url_for('static', path='images/discord_icon.png') }}" alt="Logo" class="navbar-logo img-animation me-2 img-nav">
+            </a>
 
-        <a class="navbar-brand d-flex align-items-center p-0 btn-animation text-white m-0 nav-h" href="/new-quiz">
-            <span class="fs-4">Dodaj Quiz</span>
-        </a>
+            <a class="navbar-brand d-flex align-items-center p-0 btn-animation text-white m-0 nav-h" href="/new-quiz">
+                <span class="fs-4">Dodaj Quiz</span>
+            </a>
 
-        <span class="separator"></span>
+            <span class="separator"></span>
 
-        <a class="navbar-brand d-flex align-items-center p-0 btn-animation text-white m-0 nav-h" href="/quiz/my">
-            <span class="fs-4">Moje Quizy</span>
-        </a>
+            <a class="navbar-brand d-flex align-items-center p-0 btn-animation text-white m-0 nav-h" href="/quiz/my">
+                <span class="fs-4">Moje Quizy</span>
+            </a>
 
-        <span class="separator"></span>
+            <span class="separator"></span>
 
-        <a class="navbar-brand d-flex align-items-center p-0 btn-animation text-white m-0 nav-h" href="/quiz">
-            <span class="fs-4">Quizy</span>
-        </a>
+            <a class="navbar-brand d-flex align-items-center p-0 btn-animation text-white m-0 nav-h" href="/quiz">
+                <span class="fs-4">Przeglądaj Quizy</span>
+            </a>
+        {% else %}
+            <a class="navbar-brand d-flex align-items-center p-0 btn-animation text-white m-0 nav-h mx-2" href="/quiz/all">
+                <span class="fs-4">Przeglądaj Quizy</span>
+            </a>
+        {% endif %}
 
+        {% if is_not_logged %}
+            <a class="navbar-brand d-flex align-items-center p-0 btn-animation text-white m-0 nav-h mx-2" href="/">
+                <span class="fs-4">Logowanie</span>
+            </a>
+        {% endif %}
+
+        {% if not is_not_logged %}
         <div class="d-flex align-items-center ms-auto logout-btn">
             <a href="/logout" class="btn d-flex align-items-center">
                 <i class="bi bi-box-arrow-right text-white logout-h"></i>
             </a>
         </div>
+        {% endif %}
     </div>
 </nav>
 

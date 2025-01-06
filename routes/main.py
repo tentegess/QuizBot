@@ -61,7 +61,8 @@ async def home(request: Request):
     return templates.TemplateResponse("index.html", {
         "request": request,
         "discord_url": api.discord_login_url,
-        "count": guild_count
+        "count": guild_count,
+        "is_not_logged": True
     })
 
 @main_router.get("/login")
@@ -148,15 +149,19 @@ async def guilds(request: Request, data: dict = Depends(validate_session_with_da
     return response
 
 @main_router.get("/server/{guild_id}")
-async def server(request: Request, guild_id: int, data: dict = Depends(validate_session_with_data)):
+async def server(request: Request, guild_id: str, data: dict = Depends(validate_session_with_data)):
     session = data['session']
 
-    stats = await discord_api.fetch_guild_name(guild_id)
+    try:
+        guild_id = int(guild_id)
+        stats = await discord_api.fetch_guild_name(guild_id)
+    except Exception as e:
+        raise HTTPException(status_code=404, detail="Serwer nie istnieje")
     user_guilds = await api.get_guilds(token=session.get("token"))
     guild = next((g for g in user_guilds if g["id"] == str(guild_id)), None)
 
     if guild is None:
-        return {"error": "Brak uprawnień"}
+        raise HTTPException(status_code=401, detail="Brak uprawnień")
 
     settings = await settings_collection.find_one({"guild_id": guild_id})
     default_settings = {
@@ -173,7 +178,7 @@ async def server(request: Request, guild_id: int, data: dict = Depends(validate_
     is_owner = guild["owner"]
 
     if not is_admin and not is_owner:
-        return {"error": "Brak uprawnień"}
+        raise HTTPException(status_code=401, detail="Brak uprawnień")
 
     return templates.TemplateResponse(
         "server.html",
@@ -185,7 +190,7 @@ async def server(request: Request, guild_id: int, data: dict = Depends(validate_
 
 @main_router.post("/server/{guild_id}")
 async def update_server_settings(
-        guild_id: int,
+        guild_id: str,
         join_window_display_time: int = Form(...),
         answer_display_time: int = Form(...),
         results_display_time: int = Form(...),
@@ -195,16 +200,16 @@ async def update_server_settings(
     session = data['session']
 
     user_guilds = await api.get_guilds(token=session.get("token"))
-    guild = next((g for g in user_guilds if g["id"] == str(guild_id)), None)
+    guild = next((g for g in user_guilds if g["id"] == guild_id), None)
 
     if guild is None:
-        return {"error": "Brak uprawnień"}
+        raise HTTPException(status_code=401, detail="Brak uprawnień")
 
     is_admin = discord.Permissions(int(guild["permissions"])).administrator
     is_owner = guild["owner"]
 
     if not is_admin and not is_owner:
-        return {"error": "Brak uprawnień"}
+        raise HTTPException(status_code=401, detail="Brak uprawnień")
 
     try:
         settings_data = SettingsModel(
@@ -215,7 +220,7 @@ async def update_server_settings(
             show_results_per_question=show_results_per_question,
         )
     except ValueError as e:
-        return {"error": f"Nieprawidłowe dane wejściowe: {e}"}
+        raise HTTPException(status_code=400, detail=f"Nieprawidłowe dane wejściowe: {e}")
 
     await settings_collection.update_one(
         {"guild_id": guild_id},
@@ -327,6 +332,7 @@ async def get_quizzes(request: Request, _: None = Depends(validate_session_witho
         "show_quizzes.html",
         {
             "is_only_my_quiz": False,
+            "is_user_logged": True,
             "request": request,
         }
     )
@@ -338,23 +344,42 @@ async def get_my_quizzes(request: Request, _: None = Depends(validate_session_wi
         "show_quizzes.html",
         {
             "is_only_my_quiz": True,
+            "is_user_logged": True,
             "request": request,
+        }
+    )
+
+@main_router.get("/quiz/all")
+async def get_all_quizzes(request: Request):
+
+    return templates.TemplateResponse(
+        "show_quizzes.html",
+        {
+            "is_only_my_quiz": False,
+            "is_user_logged": False,
+            "request": request,
+            "is_not_logged": True,
         }
     )
 
 @main_router.get("/quiz/data")
 async def get_quizzes_data(
+    request: Request,
     page: int = 1,
     sort: str = "title_asc",
     search: str = "",
     is_only_my_quiz: bool = False,
-    data: dict = Depends(validate_session_with_data)
+    is_user_logged: bool = True,
 ):
-    user = data['user']
-    user_id = int(user.get("id"))
+    if is_user_logged:
+        data = await validate_session_with_data(request)
+        user = data['user']
+        user_id = int(user.get("id"))
 
     if is_only_my_quiz:
         filters = {"user_id": user_id}
+    elif not is_user_logged:
+        filters = {"is_private": False}
     else:
         filters = {
             "$or": [
@@ -436,8 +461,9 @@ async def get_quizzes_data(
     quizzes = []
     async for quiz in quizzes_cursor:
         is_editable = False
-        if quiz["user_id"] == user_id:
-            is_editable = True
+        if is_user_logged:
+            if quiz["user_id"] == user_id:
+                is_editable = True
 
         quizzes.append({
             "_id": str(quiz["_id"]),
@@ -513,9 +539,16 @@ async def get_image(img_id: str):
         raise HTTPException(status_code=404, detail=f"Zdjęcie nie istnieje: {str(e)}")
 
 @main_router.get("/quiz/view/{quiz_id}")
-async def view_quiz(request: Request, quiz_id: str, data: dict = Depends(validate_session_with_data)):
-    user = data['user']
-    user_id = int(user.get("id"))
+async def view_quiz(request: Request, quiz_id: str):
+    session_id = request.cookies.get("session_id")
+    session = await session_collection.find_one({"_id": ObjectId(session_id)})
+
+    if session:
+        token = session.get("token")
+        user = await api.get_user(token)
+        user_id = int(user.get("id"))
+    else:
+        user_id = None
 
     try:
         quiz = await quiz_collection.find_one(
@@ -538,14 +571,25 @@ async def view_quiz(request: Request, quiz_id: str, data: dict = Depends(validat
         game_count = await game_collection.count_documents({"quiz_code": quiz["access_code"]})
         user = await user_collection.find_one({"user_id": quiz["user_id"]}, {"username": 1})
 
-        return templates.TemplateResponse(
-            "view_quiz.html",
-            {
-                "request": request,
-                "quiz": quiz,
-                "author": user["username"],
-                "game_count": game_count
-            })
+        if user_id:
+            return templates.TemplateResponse(
+                "view_quiz.html",
+                {
+                    "request": request,
+                    "quiz": quiz,
+                    "author": user["username"],
+                    "game_count": game_count
+                })
+        else:
+            return templates.TemplateResponse(
+                "view_quiz.html",
+                {
+                    "request": request,
+                    "quiz": quiz,
+                    "author": user["username"],
+                    "game_count": game_count,
+                    "is_not_logged": True
+                })
     except Exception as e:
         print(f"Error occurred: {e}")
         raise HTTPException(status_code=404, detail="Quiz nie istnieje")
@@ -565,3 +609,13 @@ async def logout(session_id: str = Cookie(None)):
     await api.revoke_token(token)
 
     return response
+
+@main_router.get("/error")
+async def error_page(request: Request):
+    status_code = request.query_params.get("status_code", "Unknown")
+    detail = request.query_params.get("detail", "Unknown error")
+
+    return templates.TemplateResponse(
+        "error.html",
+        {"request": request, "status_code": status_code, "detail": detail}
+    )
