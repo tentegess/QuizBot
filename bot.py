@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from config.config import db
 from bot_utils.utils import set_logger, calc_shards
 from redis import asyncio as aioredis
+from logging import ERROR, INFO
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -26,25 +27,27 @@ class BotClass(commands.AutoShardedBot):
         self.logger.log(level=level, msg=message, **kwargs)
 
     async def on_ready(self):
-        print(f'Zalogowano jako {self.user.name}')
+        self.logger.log(level=INFO,msg=f'Zalogowano jako {self.user.name}')
+        self.logger.log(level=INFO, msg=f'Połączono z shardami: {list(self.shards.keys())}')
         try:
             await self.redis.ping()
-            print("Połączono z bazą redis")
+            self.logger.log(level=INFO,msg="Połączono z bazą redis")
         except Exception as e:
-            print(e)
+            self.logger.log(level=ERROR,msg=e)
 
         for filename in os.listdir('./cogs'):
             if filename.endswith('.py'):
                 try:
                     await self.load_extension(f'cogs.{filename[:-3]}')
-                    print(f"Załadowano: {filename}")
+                    self.logger.log(level=INFO,msg=f"Załadowano: {filename}")
                 except Exception as e:
-                    print(f"Błąd przy ładowaniu {filename}: {e}")
+                    self.logger.log(level=ERROR,msg=f"Błąd przy ładowaniu {filename}: {e}")
         try:
             synced = await self.tree.sync()
-            print(f"Zsynchronizowano {len(synced)} komend.")
+            self.logger.log(level=INFO,msg=f"Zsynchronizowano {len(synced)} komend.")
         except Exception as e:
-            print(f"Błąd podczas synchronizacji komend: {e}")
+            self.logger.log(level=ERROR,msg=f"Błąd podczas synchronizacji komend: {e}")
+
 
 
 if __name__ == "__main__":

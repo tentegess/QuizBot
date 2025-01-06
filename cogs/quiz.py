@@ -51,7 +51,6 @@ class QuizCog(commands.Cog):
 
     async def on_ready(self):
         await self.bot.wait_until_ready()
-        print(list(self.bot.shards.keys()))
         await self.restore_sessions()
 
     async def restore_sessions(self):
@@ -294,6 +293,8 @@ class QuizCog(commands.Cog):
             del game.streaks[member]
 
         await interaction.response.send_message(f"{member.mention} został wyrzucony z quizu.", ephemeral=True)
+
+
 
 async def setup(bot):
     await bot.add_cog(QuizCog(bot))

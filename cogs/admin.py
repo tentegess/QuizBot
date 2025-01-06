@@ -4,7 +4,6 @@ from discord import app_commands
 
 from model.session_model import SessionModel
 
-from bot_utils.utils import guild_only
 
 class AdminCog(commands.Cog):
     def __init__(self, bot):
