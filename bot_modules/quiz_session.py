@@ -43,6 +43,7 @@ class QuizSession:
 
 
     async def start(self):
+        await self.__save_state()
         await self.send_question()
 
     async def send_question(self):
@@ -139,26 +140,27 @@ class QuizSession:
                 answer_view.add_item(button)
 
             correct_answer_embed = discord.Embed(
-                title=f"Poprawna odpowiedź na pytanie {self.current_question_index + 1}/{len(self.quiz.questions)}",
+                title=f"Poprawna odpowiedź na pytanie {self.current_question_index + 1 }/{len(self.quiz.questions)}",
                 description=f"Poprawna odpowiedź: {correct_answer}",
                 color = discord.Color.blurple()
             )
             success = await self.safe_message_edit(embed=correct_answer_embed, view=answer_view)
             if not success:
                 return
+            self.current_question_index += 1
+            await self.__save_state()
 
             await asyncio.sleep(self.correct_answer_display_time)
             if self.game_ended:
                 return
 
-            if self.current_question_index + 1 >= len(self.quiz.questions):
+            if self.current_question_index >= len(self.quiz.questions):
                 await self.end_game()
             else:
                 await self.show_scoreboard(next_question_in=self.scoreboard_display_time)
                 await self.show_scoreboard(next_question_in=self.scoreboard_display_time)
                 await asyncio.sleep(self.scoreboard_display_time)
-                self.current_question_index += 1
-                await self.__save_state()
+
                 await self.send_question()
         finally:
             self.is_processing_question = False

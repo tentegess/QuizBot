@@ -32,10 +32,10 @@ def set_logger():
     return logger, console_handler
 
 def get_row(anslen, i):
-    if anslen < 10:
-            return i // 4
+    if anslen < 15:
+            return i // 5
     elif anslen < 30:
-            return i // 2
+            return i // 3
     else:
             return i
 
@@ -78,17 +78,6 @@ async def count_quizzes(db, user_id: int, search: str) -> int:
     total = await db["Quizzes"].count_documents(filters)
     return total
 
-class SortEnum(Enum):
-    title_asc = "Tytuł rosnąco"
-    title_desc = "Tytuł malejąco"
-    question_asc = "Liczba pytań rosnąco"
-    question_desc = "Liczba pytań malejąco"
-    author_asc = "Autor rosnąco"
-    author_desc = "Autor malejąco"
-    created_asc = "Data utworzenia rosnąco"
-    created_desc = "Data utworzenia malejąco"
-    updated_asc = "Ostatnia modyfikacja rosnąco"
-    updated_desc = "Ostatnia modyfikacja malejąco"
 
 async def fetch_quizzes_page(
     db,
@@ -96,32 +85,31 @@ async def fetch_quizzes_page(
     search: str,
     page: int,
     page_size: int,
-    sort: SortEnum,
+    sort,
 ) :
     match sort:
-        case SortEnum.title_asc:
-            sort_order = [("title_lower", ASCENDING)]
-        case SortEnum.title_desc:
-            sort_order = [("title_lower", DESCENDING)]
-        case SortEnum.question_asc:
-            sort_order = [("questions", ASCENDING)]
-        case SortEnum.question_desc:
-            sort_order = [("questions", DESCENDING)]
-        case SortEnum.author_asc:
-            sort_order = [("author_lower", ASCENDING)]
-        case SortEnum.author_desc:
-            sort_order = [("author_lower", DESCENDING)]
-        case SortEnum.created_asc:
-            sort_order = [("created_at", ASCENDING)]
-        case SortEnum.created_desc:
-            sort_order = [("created_at", DESCENDING)]
-        case SortEnum.updated_asc:
-            sort_order = [("updated_at", ASCENDING)]
-        case SortEnum.updated_desc:
-            sort_order = [("updated_at", DESCENDING)]
+        case "title_asc":
+            sort_order = [("title_lower", 1)]
+        case "title_desc":
+            sort_order = [("title_lower", -1)]
+        case "question_asc":
+            sort_order = [("questions", 1)]
+        case "question_desc":
+            sort_order = [("questions", -1)]
+        case "author_asc":
+            sort_order = [("author_lower", 1)]
+        case "author_desc":
+            sort_order = [("author_lower", -1)]
+        case "created_asc":
+            sort_order = [("created_at", 1)]
+        case "created_desc":
+            sort_order = [("created_at", -1)]
+        case "updated_asc":
+            sort_order = [("updated_at", 1)]
+        case "updated_desc":
+            sort_order = [("updated_at", -1)]
         case _:
-            sort_order = [("created_at", DESCENDING)]
-
+            sort_order = [("created_at", -1)]
 
     filters = {
         "$or": [
@@ -179,12 +167,14 @@ async def fetch_quizzes_page(
         questions_count = doc.get("questions", 0)
         user_id_ = doc.get("author")
         acode = doc.get("access_code")
+        updated_at = doc.get("updated_at").isoformat(" ", "seconds")
 
         results.append({
             "title": title,
             "questions_count": questions_count,
             "user_id": user_id_,
-            "access_code": acode
+            "access_code": acode,
+            "updated_at": updated_at
         })
 
     return results

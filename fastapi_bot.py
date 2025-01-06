@@ -13,8 +13,8 @@ init_routes(app)
 load_dotenv()
 
 def start_fastapi():
-    host = os.getenv("HOST")
-    port = int(os.getenv("PORT"))
+    host = os.getenv("HOST","127.0.0.1")
+    port = int(os.getenv("PORT","5000"))
 
     uvicorn.run(
         "fastapi_bot:app",

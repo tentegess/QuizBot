@@ -9,7 +9,7 @@ from typing import Optional
 from bot_modules.search_view import SearchView
 from enum import Enum
 
-from bot_utils.utils import fetch_quizzes_page, count_quizzes, SortEnum
+from bot_utils.utils import fetch_quizzes_page, count_quizzes
 
 
 class TimeRange(Enum):
@@ -98,23 +98,42 @@ class MiscCog(commands.Cog):
     @app_commands.describe(keyword="Fraza do wyszukania",
                            page_size="Liczba quizów na stronę (domyślnie 5)",
                            sort="Sortowanie wyników (domyślnie od najnowszych)")
+    @app_commands.choices(sort=[
+        app_commands.Choice(name="Tytuł rosnąco", value="title_asc"),
+        app_commands.Choice(name="Tytuł malejąco", value="title_desc"),
+        app_commands.Choice(name="Liczba pytań rosnąco", value="question_asc"),
+        app_commands.Choice(name="Liczba pytań malejąco", value="question_desc"),
+        app_commands.Choice(name="Autor rosnąco", value="author_asc"),
+        app_commands.Choice(name="Autor malejąco", value="author_desc"),
+        app_commands.Choice(name="Data utworzenia rosnąco", value="created_asc"),
+        app_commands.Choice(name="Data utworzenia malejąco", value="created_desc"),
+        app_commands.Choice(name="Ostatnia modyfikacja rosnąco", value="updated_asc"),
+        app_commands.Choice(name="Ostatnia modyfikacja malejąco", value="updated_desc"),
+    ])
     @app_commands.guild_only()
-    async def search_quiz(self, interaction: discord.Interaction, keyword: str, page_size: Optional[int] = 5, sort:Optional[SortEnum]=SortEnum.created_desc):
-        total = await count_quizzes(self.bot.db, interaction.user.id, keyword)
-        if total == 0:
-            await interaction.response.send_message("Brak wyników dla tej frazy.", ephemeral=True)
+    async def search_quiz(self, interaction: discord.Interaction, keyword: str, page_size: Optional[int] = 5,
+                          sort:Optional[str] = "created_desc"):
+        try:
+            await interaction.response.send_message("Szukam quizów.", ephemeral=True)
+            total = await count_quizzes(self.bot.db, interaction.user.id, keyword)
+            if total == 0:
+                await interaction.edit_original_response(content="Brak wyników dla tej frazy.")
+                return
+
+            page = 0
+            print(sort)
+            results = await fetch_quizzes_page(
+                db=self.bot.db,
+                user_id=interaction.user.id,
+                search=keyword,
+                page=page,
+                page_size=page_size,
+                sort=sort,
+            )
+        except Exception as e:
+            self.bot.log(message=e, name="MongoDB error", level=ERROR)
+            await interaction.edit_original_response(content="Wystąpił problem z wyszukaniem quizów spróbuj ponownie później")
             return
-
-        page = 0
-
-        results = await fetch_quizzes_page(
-            db=self.bot.db,
-            user_id=interaction.user.id,
-            search=keyword,
-            page=page,
-            page_size=page_size,
-            sort=sort,
-        )
 
         view = SearchView(
             db=self.bot.db,
@@ -127,7 +146,7 @@ class MiscCog(commands.Cog):
         )
 
         embed = view.build_embed(results, page)
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        await interaction.edit_original_response(embed=embed, view=view)
 
 
 async def setup(bot):

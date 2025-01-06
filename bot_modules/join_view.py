@@ -52,13 +52,16 @@ class JoinQuizView(View):
         else:
             await interaction.response.defer()
 
-        message = interaction.message
-        embed = message.embeds[0]
-        player_names = ', '.join([player.name for player in self.players])
-        fields = [field for field in embed.fields if field.name != "Uczestnicy:"]
-        embed.clear_fields()
-        for field in fields:
-            embed.add_field(name=field.name, value=field.value, inline=field.inline)
-        embed.add_field(name="Uczestnicy:", value=player_names or "Brak", inline=False)
-        await message.edit(embed=embed)
+        if len(self.players) <= 7:
+            message = interaction.message
+            embed = message.embeds[0]
+            player_names = ', '.join([player.name for player in self.players])
+            if len(self.players) == 7:
+                player_names += "..."
+            fields = [field for field in embed.fields if field.name != "Uczestnicy:"]
+            embed.clear_fields()
+            for field in fields:
+                embed.add_field(name=field.name, value=field.value, inline=field.inline)
+            embed.add_field(name="Uczestnicy:", value=player_names or "Brak", inline=False)
+            await message.edit(embed=embed)
 

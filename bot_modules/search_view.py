@@ -1,11 +1,6 @@
 import discord
-from discord.ui import Button, View
-import asyncio
-from typing import Optional, List
 
-from pymongo import DESCENDING
-
-from bot_utils.utils import fetch_quizzes_page, SortEnum
+from bot_utils.utils import fetch_quizzes_page
 
 
 class SearchView(discord.ui.View):
@@ -15,7 +10,7 @@ class SearchView(discord.ui.View):
         total_count: int,
         page: int,
         page_size: int,
-        sort: SortEnum,):
+        sort):
         super().__init__(timeout=180)
         self.db = db
         self.user_id = user_id
@@ -23,7 +18,7 @@ class SearchView(discord.ui.View):
         self.total_count = total_count
         self.page = page
         self.page_size = page_size
-        self.sort= sort
+        self.sort = sort
 
         self.max_page = (self.total_count - 1) // self.page_size
 
@@ -45,12 +40,20 @@ class SearchView(discord.ui.View):
             acode = r["access_code"]
             qcount = r["questions_count"]
             user = r["user_id"]
+            updated_at = r["updated_at"]
             embed.add_field(
                 name=f"{t} | Kod quizu: {acode}",
-                value=f"Liczba pytań: {qcount}\nAutor: {user}",
+                value=f"Liczba pytań: {qcount}\nAutor: {user}\nostatnia aktualizacja: {updated_at}",
                 inline=False
             )
+        embed.set_footer(text="Rozpocznij grę komendą `/startquiz <kod quizu>`")
         return embed
+
+    def _build_error_embed(self):
+        embed = discord.Embed(
+            title=f"Wystąpił błąd, spróbuj ponownie później",
+            color=discord.Color.red()
+        )
 
     @discord.ui.button(emoji="◀️", style=discord.ButtonStyle.primary)
     async def prev_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -83,3 +86,4 @@ class SearchView(discord.ui.View):
         )
         embed = self.build_embed(results, self.page)
         await interaction.response.edit_message(embed=embed, view=self)
+
