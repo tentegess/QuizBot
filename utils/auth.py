@@ -87,4 +87,7 @@ class Oauth:
         )
         return True
 
+    async def close(self):
+        await self.session.close()
+
 api = Oauth()

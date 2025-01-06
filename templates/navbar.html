@@ -4,18 +4,28 @@
             <img src="{{ url_for('static', path='images/discord_icon.png') }}" alt="Logo" class="navbar-logo img-animation me-2 img-nav">
         </a>
 
-        <a class="navbar-brand d-flex align-items-center p-0 btn-animation text-white" href="/new-quiz">
+        <a class="navbar-brand d-flex align-items-center p-0 btn-animation text-white m-0 nav-h" href="/new-quiz">
             <span class="fs-4">Dodaj Quiz</span>
         </a>
 
-        <a class="navbar-brand d-flex align-items-center p-0 btn-animation text-white" href="/quiz">
+        <span class="separator"></span>
+
+        <a class="navbar-brand d-flex align-items-center p-0 btn-animation text-white m-0 nav-h" href="/quiz/my">
+            <span class="fs-4">Moje Quizy</span>
+        </a>
+
+        <span class="separator"></span>
+
+        <a class="navbar-brand d-flex align-items-center p-0 btn-animation text-white m-0 nav-h" href="/quiz">
             <span class="fs-4">Quizy</span>
         </a>
 
         <div class="d-flex align-items-center ms-auto logout-btn">
-            <a href="/logout" class="btn d-flex align-items-center ">
-                <i class="bi bi-box-arrow-right text-white"></i>
+            <a href="/logout" class="btn d-flex align-items-center">
+                <i class="bi bi-box-arrow-right text-white logout-h"></i>
             </a>
         </div>
     </div>
 </nav>
+
+

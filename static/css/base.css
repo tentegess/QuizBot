@@ -61,3 +61,18 @@ body {
     cursor: pointer;
 }
 
+.separator {
+    display: inline-block;
+    width: 2px;
+    height: 20px;
+    background-color: white;
+    margin: 0 20px;
+}
+
+.logout-btn a:hover .logout-h {
+    color: red !important;
+}
+
+.nav-h:hover {
+    color: #6064f4 !important;
+}

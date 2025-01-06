@@ -409,7 +409,7 @@ saveButton.addEventListener('click', () => {
     })
     .then(response => {
         if (response.ok) {
-            alert('Quiz został zapisany!');
+            window.location.href = '/quiz/my';
         } else {
             alert('Wystąpił błąd podczas zapisu quizu.');
         }

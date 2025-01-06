@@ -43,6 +43,7 @@ async def on_startup():
 
 @main_router.on_event("shutdown")
 async def shutdown_event():
+    await api.close()
     await discord_api.close()
 
 
@@ -132,13 +133,18 @@ async def guilds(request: Request, data: dict = Depends(validate_session_with_da
 
     perms *= 100
 
-    return templates.TemplateResponse(
+    response = templates.TemplateResponse(
         "guilds.html",
         {
             "request": request,
             "user": user["global_name"],
             "guilds": perms
         })
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+
+    return response
 
 @main_router.get("/server/{guild_id}")
 async def server(request: Request, guild_id: int, data: dict = Depends(validate_session_with_data)):
@@ -260,7 +266,7 @@ async def save_quiz(
         quiz_dict = quiz.model_dump()
         quiz_id = await quiz_collection.insert_one(quiz_dict)
 
-    return
+    return JSONResponse(content={}, status_code=200)
 
 @main_router.get("/quiz")
 async def get_quizzes(request: Request, _: None = Depends(validate_session_without_data)):
@@ -268,39 +274,59 @@ async def get_quizzes(request: Request, _: None = Depends(validate_session_witho
     return templates.TemplateResponse(
         "show_quizzes.html",
         {
+            "is_only_my_quiz": False,
+            "request": request,
+        }
+    )
+
+@main_router.get("/quiz/my")
+async def get_my_quizzes(request: Request, _: None = Depends(validate_session_without_data)):
+
+    return templates.TemplateResponse(
+        "show_quizzes.html",
+        {
+            "is_only_my_quiz": True,
             "request": request,
         }
     )
 
 @main_router.get("/quiz/data")
-async def get_quizzes_data(page: int = 1, sort: str = "title_asc", search: str = "", data: dict = Depends(validate_session_with_data)):
+async def get_quizzes_data(
+    page: int = 1,
+    sort: str = "title_asc",
+    search: str = "",
+    is_only_my_quiz: bool = False,
+    data: dict = Depends(validate_session_with_data)
+):
     user = data['user']
     user_id = int(user.get("id"))
 
-    filters = {
-        "$or": [
-            {"is_private": False},
-            {"is_private": True, "user_id": user_id}
-        ]
-    }
+    if is_only_my_quiz:
+        filters = {"user_id": user_id}
+    else:
+        filters = {
+            "$or": [
+                {"is_private": False},
+                {"is_private": True, "user_id": user_id}
+            ]
+        }
+
     if search:
         filters["title"] = {"$regex": search, "$options": "i"}
 
     sort_order = []
-    collation = {"locale": "en", "strength": 1}
-
     if sort == "title_asc":
-        sort_order = [("title", ASCENDING)]
+        sort_order = [("title_lower", ASCENDING)]
     elif sort == "title_desc":
-        sort_order = [("title", DESCENDING)]
+        sort_order = [("title_lower", DESCENDING)]
     elif sort == "questions_asc":
         sort_order = [("questions", ASCENDING)]
     elif sort == "questions_desc":
         sort_order = [("questions", DESCENDING)]
     elif sort == "author_asc":
-        sort_order = [("author", ASCENDING)]
+        sort_order = [("author_lower", ASCENDING)]
     elif sort == "author_desc":
-        sort_order = [("author", DESCENDING)]
+        sort_order = [("author_lower", DESCENDING)]
     elif sort == "create_date_asc":
         sort_order = [("created_at", ASCENDING)]
     elif sort == "create_date_desc":
@@ -312,24 +338,60 @@ async def get_quizzes_data(page: int = 1, sort: str = "title_asc", search: str =
     else:
         sort_order = [("updated_at", ASCENDING)]
 
-    quizzes_cursor = quiz_collection.find(
-        filters, {"title": 1, "author": 1, "questions": 1, "_id": 1, "user_id": 1, "created_at": 1, "updated_at": 1}
-    ).sort(sort_order).collation(collation).skip((page - 1) * 9).limit(9)
+    pipeline = [
+        {"$match": filters},
+        {
+            "$lookup": {
+                "from": "Users",
+                "localField": "user_id",
+                "foreignField": "user_id",
+                "as": "author_info"
+            }
+        },
+        {
+            "$addFields": {
+                "author": {
+                    "$ifNull": [
+                        {"$arrayElemAt": ["$author_info.username", 0]},
+                        "Unknown Author"
+                    ]
+                },
+                "questions": {"$size": "$questions"}
+            }
+        },
+        {
+            "$project": {
+                "title": 1,
+                "author": 1,
+                "questions": 1,
+                "created_at": 1,
+                "updated_at": 1,
+                "user_id": 1,
+                "is_private": 1,
+                "author_lower": {"$toLower": "$author"},
+                "title_lower": {"$toLower": "$title"}
+            }
+        },
+        {
+            "$sort": dict(sort_order)
+        },
+        {"$skip": (page - 1) * 9},
+        {"$limit": 9}
+    ]
+
+    quizzes_cursor = quiz_collection.aggregate(pipeline)
 
     quizzes = []
     async for quiz in quizzes_cursor:
         is_editable = False
         if quiz["user_id"] == user_id:
             is_editable = True
-        questions_count = len(quiz["questions"])
-
-        user = await user_collection.find_one({"user_id": quiz["user_id"]}, {"username": 1})
 
         quizzes.append({
             "_id": str(quiz["_id"]),
             "title": quiz["title"],
-            "author": user["username"],
-            "questions": questions_count,
+            "author": quiz["author"],
+            "questions": quiz["questions"],
             "created_at": quiz["created_at"].isoformat(),
             "updated_at": quiz["updated_at"].isoformat(),
             "is_editable": is_editable
@@ -402,7 +464,6 @@ async def get_image(img_id: str):
 async def view_quiz(request: Request, quiz_id: str, data: dict = Depends(validate_session_with_data)):
     user = data['user']
     user_id = int(user.get("id"))
-    user = await user_collection.find_one({"user_id": user_id}, {"username": 1})
 
     try:
         quiz = await quiz_collection.find_one(
@@ -423,6 +484,7 @@ async def view_quiz(request: Request, quiz_id: str, data: dict = Depends(validat
             question["image_url"] = f"/quiz/image/{str(question.get('image_url'))}" if question.get('image_url') else None
 
         game_count = await game_collection.count_documents({"quiz_code": quiz["access_code"]})
+        user = await user_collection.find_one({"user_id": quiz["user_id"]}, {"username": 1})
 
         return templates.TemplateResponse(
             "view_quiz.html",
