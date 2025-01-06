@@ -39,8 +39,6 @@ async def guilds(request: Request, data: dict = Depends(validate_session_with_da
         if is_admin or guild["owner"]:
             perms.append(guild)
 
-    perms *= 100
-
     response = templates.TemplateResponse(
         "guilds.html",
         {
@@ -129,7 +127,7 @@ async def update_server_settings(
         raise HTTPException(status_code=400, detail=f"Nieprawidłowe dane wejściowe: {e}")
 
     await settings_collection.update_one(
-        {"guild_id": guild_id},
+        {"guild_id": int(guild_id)},
         {"$set": settings_data.model_dump()},
         upsert=True
     )

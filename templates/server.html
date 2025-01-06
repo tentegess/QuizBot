@@ -19,10 +19,10 @@
         <div class="row mb-4">
             <div class="col-md-12">
                 <div class="card border-dark text-white">
-                    <div class="card-header">Czas wyświetlania okienka dołączania: {{ settings.join_window_display_time }}</div>
+                    <div class="card-header">Czas wyświetlania okienka dołączania: <span id="join-window-display-time-value">{{ settings.join_window_display_time }}</span></div>
                     <div class="card-body color-m text-truncate">
                         <input type="range" class="form-range answer-range slider" min="5" max="30"
-                               value="{{ settings.join_window_display_time }}" name="join_window_display_time">
+                               value="{{ settings.join_window_display_time }}" name="join_window_display_time" id="join-window-display-time">
                     </div>
                 </div>
             </div>
@@ -31,10 +31,10 @@
         <div class="row mb-4">
             <div class="col-md-12">
                 <div class="card border-dark text-white">
-                    <div class="card-header">Czas wyświetlania odpowiedzi na pytanie: {{ settings.answer_display_time }}</div>
+                    <div class="card-header">Czas wyświetlania odpowiedzi na pytanie: <span id="answer-display-time-value">{{ settings.answer_display_time }}</span></div>
                     <div class="card-body color-m text-truncate">
                         <input type="range" class="form-range answer-range slider" min="5" max="30"
-                               value="{{ settings.answer_display_time }}" name="answer_display_time">
+                               value="{{ settings.answer_display_time }}" name="answer_display_time" id="answer-display-time">
                     </div>
                 </div>
             </div>
@@ -43,10 +43,10 @@
         <div class="row mb-4">
             <div class="col-md-12">
                 <div class="card border-dark text-white">
-                    <div class="card-header">Czas wyświetlania wyników po każdym pytaniu: {{ settings.results_display_time }}</div>
+                    <div class="card-header">Czas wyświetlania wyników po każdym pytaniu: <span id="results-display-time-value">{{ settings.results_display_time }}</span></div>
                     <div class="card-body color-m text-truncate">
                         <input type="range" class="form-range answer-range slider" min="5" max="30"
-                               value="{{ settings.results_display_time }}" name="results_display_time">
+                               value="{{ settings.results_display_time }}" name="results_display_time" id="results-display-time">
                     </div>
                 </div>
             </div>
@@ -70,6 +70,18 @@
 </div>
 
 <script>
+document.querySelectorAll('.slider').forEach(slider => {
+    const id = slider.id;
+    const valueSpan = document.getElementById(id + '-value');
+    if (valueSpan) {
+        valueSpan.textContent = slider.value;
+    }
+
+    slider.addEventListener('input', function() {
+        valueSpan.textContent = slider.value;
+    });
+});
+
 document.querySelector('form').addEventListener('submit', function(event) {
     event.preventDefault();
 
