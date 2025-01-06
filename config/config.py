@@ -13,8 +13,8 @@ db = client.Quizbot
 session_collection = db['Sessions']
 quiz_collection = db['Quizzes']
 user_collection = db['Users']
+settings_collection = db['Settings']
 game_collection = db['Games']
-answer_collection = db['Answers']
 result_collection = db['Results']
 
 try:

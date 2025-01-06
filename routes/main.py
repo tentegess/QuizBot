@@ -15,12 +15,13 @@ from model.quiz_model import QuizModel
 from model.question_model import QuestionModel
 from model.option_model import OptionModel
 from model.user_model import UserModel
+from model.settings_model import SettingsModel
 from utils.auth import Oauth, api
 from utils.validate_session import validate_session_without_data, validate_session_with_data
 from utils.validate_quiz import validate_quiz_data, img_scaling
 from utils.generate_unique_id import get_unique_access_code
 from utils.discord_api import discord_api
-from config.config import session_collection, quiz_collection, db, user_collection, game_collection
+from config.config import session_collection, quiz_collection, db, user_collection, game_collection, settings_collection
 import json
 from typing import List, Optional
 from motor.motor_asyncio import AsyncIOMotorGridFSBucket
@@ -149,10 +150,50 @@ async def guilds(request: Request, data: dict = Depends(validate_session_with_da
 @main_router.get("/server/{guild_id}")
 async def server(request: Request, guild_id: int, data: dict = Depends(validate_session_with_data)):
     session = data['session']
-    user = data['user']
-    token = session.get("token")
 
     stats = await discord_api.fetch_guild_name(guild_id)
+    user_guilds = await api.get_guilds(token=session.get("token"))
+    guild = next((g for g in user_guilds if g["id"] == str(guild_id)), None)
+
+    if guild is None:
+        return {"error": "Brak uprawnień"}
+
+    settings = await settings_collection.find_one({"guild_id": guild_id})
+    default_settings = {
+        "guild_id": guild_id,
+        "join_window_display_time": 5,
+        "answer_display_time": 5,
+        "results_display_time": 5,
+        "show_results_per_question": False
+    }
+    if not settings:
+        settings = default_settings
+
+    is_admin = discord.Permissions(int(guild["permissions"])).administrator
+    is_owner = guild["owner"]
+
+    if not is_admin and not is_owner:
+        return {"error": "Brak uprawnień"}
+
+    return templates.TemplateResponse(
+        "server.html",
+        {
+            "request": request,
+            "server_name": stats["name"],
+            "settings": settings
+        })
+
+@main_router.post("/server/{guild_id}")
+async def update_server_settings(
+        guild_id: int,
+        join_window_display_time: int = Form(...),
+        answer_display_time: int = Form(...),
+        results_display_time: int = Form(...),
+        show_results_per_question: bool = Form(False),
+        data: dict = Depends(validate_session_with_data)
+):
+    session = data['session']
+
     user_guilds = await api.get_guilds(token=session.get("token"))
     guild = next((g for g in user_guilds if g["id"] == str(guild_id)), None)
 
@@ -165,13 +206,24 @@ async def server(request: Request, guild_id: int, data: dict = Depends(validate_
     if not is_admin and not is_owner:
         return {"error": "Brak uprawnień"}
 
-    return templates.TemplateResponse(
-        "server.html",
-        {
-            "request": request,
-            "name": stats["name"],
-            "id": guild_id,
-        })
+    try:
+        settings_data = SettingsModel(
+            guild_id=guild_id,
+            join_window_display_time=join_window_display_time,
+            answer_display_time=answer_display_time,
+            results_display_time=results_display_time,
+            show_results_per_question=show_results_per_question,
+        )
+    except ValueError as e:
+        return {"error": f"Nieprawidłowe dane wejściowe: {e}"}
+
+    await settings_collection.update_one(
+        {"guild_id": guild_id},
+        {"$set": settings_data.model_dump()},
+        upsert=True
+    )
+
+    return {"message": "Ustawienia zostały zapisane pomyślnie"}
 
 @main_router.get("/new-quiz")
 async def make_quiz(request: Request, _: None = Depends(validate_session_without_data)):
