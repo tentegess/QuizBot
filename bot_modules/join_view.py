@@ -5,12 +5,11 @@ from typing import Optional, List
 
 
 class JoinQuizView(View):
-    def __init__(self, cog, game_key,gamestarter, timeout=10, send_private_messages=True,allowed_users: Optional[List[discord.Member]] = None):
+    def __init__(self, cog, game_key,gamestarter, timeout=10, allowed_users: Optional[List[discord.Member]] = None):
         super().__init__()
         self.players = set()
         self.timeout = timeout
 
-        self.send_private_messages = send_private_messages
         self.game_starter = gamestarter
         self.allowed_users = allowed_users
 
@@ -32,25 +31,19 @@ class JoinQuizView(View):
             return
 
         if user in self.players:
-            if self.send_private_messages:
-                embed = discord.Embed(
-                    title="Już dołączyłeś do quizu",
-                    color=discord.Color.red()
-                )
-                await interaction.response.send_message(embed=embed, ephemeral=True)
-            else:
-                await interaction.response.defer()
+            embed = discord.Embed(
+                title="Już dołączyłeś do quizu",
+                color=discord.Color.red()
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
             return
 
         self.players.add(user)
-        if self.send_private_messages:
-            embed = discord.Embed(
-                title="Dołączyłeś do quizu",
-                color=discord.Color.green()
-            )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-        else:
-            await interaction.response.defer()
+        embed = discord.Embed(
+            title="Dołączyłeś do quizu",
+            color=discord.Color.green()
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
         if len(self.players) <= 7:
             message = interaction.message

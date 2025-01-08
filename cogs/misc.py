@@ -1,3 +1,4 @@
+import logging
 from datetime import timedelta, datetime, timezone
 from logging import ERROR
 
@@ -7,8 +8,9 @@ from discord import app_commands
 
 from typing import Optional
 from bot_modules.search_view import SearchView
-from enum import Enum
+from model.settings_model import SettingsModel
 
+from enum import Enum
 from bot_utils.utils import fetch_quizzes_page, count_quizzes
 
 
@@ -24,6 +26,29 @@ class MiscCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.db = self.bot.db
+
+    @commands.Cog.listener()
+    async def on_guild_join(self, guild: discord.Guild):
+        self.bot.log(message="bot dołącza", name="test", level=logging.INFO)
+        try:
+            default_settings = SettingsModel(guild_id=guild.id).dict()
+            await self.db['Settings'].update_one(
+                {"guild_id": guild.id},
+                {"$set": default_settings},
+                upsert=True
+            )
+            self.bot.log(message=f"Utworzono ustawienia dla gildii {guild.name}", name="Join", level=logging.INFO)
+        except Exception as e:
+            self.bot.log(message=f"Błąd w tworzeniu ustawień dla gildii {guild.name}", name="MongoDB Error", level=ERROR)
+
+    @commands.Cog.listener()
+    async def on_guild_remove(self, guild: discord.Guild):
+        try:
+            await self.db['Settings'].delete_one({"guild_id": guild.id})
+            self.bot.log(message=f"usunięto ustawienia dla gildii {guild.name}", name="Join", level=logging.INFO)
+        except Exception as e:
+            self.bot.log(message=f"Błąd w usunięciu ustawień dla gildii {guild.name}", name="MongoDB Error", level=ERROR)
+
 
     @app_commands.command(name="leaderboard", description="Wyświetla listę najlepszych graczy.")
     @app_commands.describe(

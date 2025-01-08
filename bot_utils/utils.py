@@ -32,12 +32,15 @@ def set_logger():
     return logger, console_handler
 
 def get_row(anslen, i):
-    if anslen < 15:
+    if anslen <= 70:
             return i // 5
-    elif anslen < 30:
+    elif anslen <= 100:
             return i // 3
+    elif anslen <= 180:
+            return i // 2
     else:
             return i
+
 
 
 def calc_shards(inst_index, total_inst, total_shards):

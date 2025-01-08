@@ -5,6 +5,7 @@ from discord.ext import commands
 from discord import app_commands
 from bot_utils.utils import get_quiz
 from bot_modules.quiz_session import QuizSession
+from model.settings_model import SettingsModel
 import asyncio
 from bot_modules.join_view import JoinQuizView
 from datetime import datetime, timedelta, timezone
@@ -81,6 +82,13 @@ class QuizCog(commands.Cog):
             self.active_games[game_key] = session
             await session.send_question()
 
+    async def ensure_guild_settings(self, guild_id: int) -> dict:
+        doc = await self.db['Settings'].find_one({"guild_id": guild_id})
+        if doc is None:
+            default_model = SettingsModel(guild_id=guild_id)
+            await self.db['Settings'].insert_one(default_model.dict())
+            return default_model.dict()
+        return doc
 
 
 
@@ -124,38 +132,65 @@ class QuizCog(commands.Cog):
 
 
     @app_commands.command(name="startquiz", description="Rozpocznij quiz")
-    @app_commands.describe(access_code="Kod quizu", allowed_users="Użytkownicy, którzy mogą dołączyć (opcjonalne, rozdzieleni spacją)")
+    @app_commands.describe(access_code="Kod quizu", allowed_users="Użytkownicy, którzy mogą dołączyć (opcjonalne, rozdzieleni spacją)",
+                           join_window="Czas dołączenia (5-30), jeśli nie podasz to z bazy",
+                           answer_time="Czas wyświetlenia odpowiedzi (5-30), jeśli nie podasz to z bazy",
+                           results_time="Czas wyświetlania wyników (5-30), jeśli nie podasz to z bazy",
+                           show_results="Czy pokazywać wyniki po każdym pytaniu (tak/nie)?"
+                           )
     @app_commands.guild_only()
     async def start_quiz(self, ctx: discord.Interaction,
                         access_code: str,
-                        allowed_users:Optional[app_commands.Transform[List[discord.Member], MembersListTransformer]]):
+                        allowed_users:Optional[app_commands.Transform[List[discord.Member], MembersListTransformer]],
+                         join_window: Optional[int] = None,
+                         answer_time: Optional[int] = None,
+                         results_time: Optional[int] = None,
+                         show_results: Optional[bool] = None
+                         ):
         guild_id = ctx.guild.id
         channel_id = ctx.channel.id
         game_key = (guild_id, channel_id)
 
+        if game_key in self.active_games or game_key in self.active_join_views:
+            await ctx.response.send_message("Gra już trwa w tym kanale.", ephemeral=True)
+            return
+
+        if join_window is not None and not (5 <= join_window <=30):
+            await ctx.response.send_message("czas dołączenia musi być w zakresie 5-30s", ephemeral=True)
+            return
+
+        if answer_time is not None and not (5 <= answer_time <=30):
+            await ctx.response.send_message("czas wyświetlenia odpowiedzi być w zakresie 5-30s", ephemeral=True)
+            return
+
+        if results_time is not None and not (5 <= results_time <=30):
+            await ctx.response.send_message("czas pokazania wyników musi być w zakresie 5-30s", ephemeral=True)
+            return
+
         try:
             await ctx.response.defer()
             quiz = await get_quiz(self.db,access_code)
+
+            settings = await self.ensure_guild_settings(guild_id)
+            if join_window is not None:
+                settings["join_window_display_time"] = join_window
+            if answer_time is not None:
+                settings["answer_display_time"] = answer_time
+            if results_time is not None:
+                settings["results_display_time"] = results_time
+            if show_results is not None:
+                settings["show_results_per_question"] = show_results
+
         except Exception as e:
             self.bot.log(message=e, name="MongoDB error", level=ERROR)
-            await ctx.followup.send("Wystąpił problem z pobraniem quizu spróbuj ponownie później", ephemeral=True)
+            await ctx.followup.send("Wystąpił problem z pobraniem quizu spróbuj ponownie później")
             return
-
 
         if quiz is None:
-            await ctx.followup.send("Ten quiz nie istnieje", ephemeral=True)
+            await ctx.followup.send("Ten quiz nie istnieje")
             return
 
-        if game_key in self.active_games or game_key in self.active_join_views:
-            await ctx.followup.send("Gra już trwa w tym kanale.", ephemeral=True)
-            return
-
-        if not quiz:
-            await ctx.followup.send("Brak skonfigurowanego quizu dla tego serwera.", ephemeral=True)
-
-            return
-
-        join_view = JoinQuizView(timeout=10, cog=self, game_key=game_key, gamestarter=ctx.user, allowed_users=allowed_users)
+        join_view = JoinQuizView(timeout=settings["join_window_display_time"], cog=self, game_key=game_key, gamestarter=ctx.user, allowed_users=allowed_users)
         self.active_join_views[game_key] = join_view
         end_time = datetime.now(timezone.utc) + timedelta(seconds=join_view.timeout)
 
@@ -187,8 +222,9 @@ class QuizCog(commands.Cog):
 
         game = QuizSession(quiz, ctx.channel, self, players=join_view.players, message=message,
                            game_starter=ctx.user,
-                           correct_answer_display_time=5,
-                           scoreboard_display_time=5)
+                           correct_answer_display_time=settings["answer_display_time"],
+                           scoreboard_display_time=settings["results_display_time"],
+                           send_private_messages=settings["show_results_per_question"])
         self.active_games[game_key] = game
         await game.start()
 

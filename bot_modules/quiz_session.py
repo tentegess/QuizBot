@@ -9,6 +9,7 @@ from model.game_model import GameModel
 from model.resut_model import ResultModel
 from model.quiz_model import QuizModel
 from bot_utils.utils import get_row
+from bot_utils.button_padding import calc_string_width, pad_string
 
 import json
 
@@ -58,11 +59,17 @@ class QuizSession:
 
         self.correct_count_for_question = 0
 
+        max_width = 0.0
+        for opt in question.options:
+            w = calc_string_width(opt.option)
+            if w > max_width:
+                max_width = w
 
         view = discord.ui.View(timeout=question.time)
         for idx, option in enumerate(question.options):
-            button = discord.ui.Button(label=option.option,
-                                       style=discord.ButtonStyle.primary, row=get_row(len(option.option),idx))
+            padded_label = pad_string(option.option, max_width)
+            button = discord.ui.Button(label=padded_label,
+                                       style=discord.ButtonStyle.primary, row=get_row(max_width,idx))
             button.callback = self.create_answer_callback(idx)
             view.add_item(button)
 
@@ -131,12 +138,19 @@ class QuizSession:
 
             answer_view = discord.ui.View()
 
+            max_width = 0.0
+            for opt in question.options:
+                w = calc_string_width(opt.option)
+                if w > max_width:
+                    max_width = w
+
 
             for idx, option in enumerate(question.options):
+                padded_label = pad_string(option.option, max_width)
                 style = discord.ButtonStyle.green if idx == correct_index else discord.ButtonStyle.danger
 
-                button = discord.ui.Button(label=option.option, style=style, disabled=True,
-                                           row=get_row(len(option.option),idx))
+                button = discord.ui.Button(label= padded_label, style=style, disabled=True,
+                                           row=get_row(max_width,idx))
                 answer_view.add_item(button)
 
             correct_answer_embed = discord.Embed(
@@ -144,6 +158,11 @@ class QuizSession:
                 description=f"Poprawna odpowiedź: {correct_answer}",
                 color = discord.Color.blurple()
             )
+
+            if self.current_question_index+1 < len(self.quiz.questions) is not None:
+                end_time = datetime.now(timezone.utc) + timedelta(seconds=self.scoreboard_display_time+self.correct_answer_display_time)
+                correct_answer_embed.add_field(name="Następne pytanie ", value=f"<t:{int(end_time.timestamp())}:R>")
+
             success = await self.safe_message_edit(embed=correct_answer_embed, view=answer_view)
             if not success:
                 return
@@ -184,16 +203,18 @@ class QuizSession:
 
             if user not in self.players:
                 embed = discord.Embed(
-                    title="Nie jesteś uczestnikiem tego quizu."
+                    title="Nie jesteś uczestnikiem tego quizu.",
+                    color=discord.Color.red()
                 )
                 await interaction.response.send_message(embed=embed, ephemeral=True)
                 return
 
             if user.id in self.answered_users:
                 embed = discord.Embed(
-                    title="Już odpowiedziałeś na to pytanie"
+                    title="Już odpowiedziałeś na to pytanie",
+                    color=discord.Color.red()
                 )
-                await callback_mess(embed)
+                await interaction.response.send_message(embed=embed, ephemeral=True)
                 return
 
             self.answered_users.add(user.id)

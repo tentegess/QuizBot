@@ -7,6 +7,5 @@ RUN pip3 install -r r.txt
 
 COPY . /app
 
-EXPOSE 1025
 
 CMD ["python","bot.py"]
