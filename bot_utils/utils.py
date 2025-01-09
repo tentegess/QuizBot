@@ -8,7 +8,7 @@ from pymongo import DESCENDING, ASCENDING
 from model.quiz_model import QuizModel
 
 async def get_quiz(db,access_code):
-    doc = await db["Quizzes"].find_one({"access_code": access_code})
+    doc = await db["Quizzes"].find_one({"access_code": access_code,"is_active": True})
     if not doc:
         return None
     return QuizModel(**doc)
@@ -76,7 +76,8 @@ async def count_quizzes(db, user_id: int, search: str) -> int:
             {"is_private": False},
             {"is_private": True, "user_id": user_id}
         ],
-        "title": {"$regex": search, "$options": "i"}
+        "title": {"$regex": search, "$options": "i"},
+        "is_active": True
     }
     total = await db["Quizzes"].count_documents(filters)
     return total
@@ -119,7 +120,8 @@ async def fetch_quizzes_page(
             {"is_private": False},
             {"is_private": True, "user_id": user_id}
         ],
-        "title": {"$regex": search, "$options": "i"}
+        "title": {"$regex": search, "$options": "i"},
+        "is_active": True
     }
 
     pipeline = [
