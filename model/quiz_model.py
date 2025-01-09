@@ -12,6 +12,7 @@ class QuizModel(BaseModel):
     questions: List[QuestionModel]
     access_code: str = None
     is_private: bool = False
+    is_active: bool = True
 
     class Config:
         arbitrary_types_allowed = True

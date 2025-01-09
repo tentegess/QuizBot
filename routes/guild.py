@@ -9,6 +9,7 @@ from utils.auth import api
 from utils.validate_session import validate_session_with_data
 from utils.discord_api import discord_api
 from config.config import settings_collection
+import os
 
 load_dotenv()
 guild_router = APIRouter()
@@ -28,7 +29,7 @@ async def guilds(request: Request, data: dict = Depends(validate_session_with_da
         if guild["id"] in bot_guilds:
             guild["url"] = "/server/" + str(guild["id"])
         else:
-            guild["url"] = f"https://discord.com/oauth2/authorize?client_id=1308514751026036847&guild_id={guild['id']}"
+            guild["url"] = os.environ.get('DISCORD_INVITE') + guild['id']
 
         if guild.get("icon"):
             guild["icon"] = f"https://cdn.discordapp.com/icons/{guild['id']}/{guild['icon']}"

@@ -11,9 +11,9 @@ load_dotenv()
 class Oauth:
     client_id = os.environ.get('DISCORD_CLIENT_ID')
     client_secret = os.environ.get('DISCORD_CLIENT_SECRET')
-    redirect_uri = 'http://127.0.0.1:5000/login'
-    scope = 'identify%20email%20guilds'
-    discord_login_url = f'https://discord.com/oauth2/authorize?client_id={client_id}&response_type=code&redirect_uri=http%3A%2F%2F127.0.0.1%3A5000%2Flogin&scope=identify+guilds+email'
+    redirect_uri = os.environ.get('REDIRECT_URL')
+    scope = os.environ.get('SCOPE')
+    discord_login_url = os.environ.get('DISCORD_LOGIN_URL')
     discord_token_url = 'https://discord.com/api/oauth2/token'
     discord_api_url = 'https://discord.com/api'
     session: aiohttp.ClientSession | None

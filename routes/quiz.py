@@ -48,7 +48,7 @@ async def save_quiz(
 
     if quiz_id:
         quiz_id = ObjectId(quiz_id)
-        quiz = await quiz_collection.find_one({"_id": quiz_id})
+        quiz = await quiz_collection.find_one({"_id": quiz_id, "is_active": True})
         if not quiz:
             raise HTTPException(status_code=404, detail="Quiz nie istnieje")
         if quiz["user_id"] != int(user_id):
@@ -186,6 +186,7 @@ async def get_quizzes_data(
             ]
         }
 
+    filters["is_active"] = True
     if search:
         filters["title"] = {"$regex": search, "$options": "i"}
 
@@ -288,13 +289,13 @@ async def delete_quiz(quiz_id: str, data: dict = Depends(validate_session_with_d
     user_id = user.get("id")
     quiz_object_id = ObjectId(quiz_id)
 
-    quiz = await quiz_collection.find_one({"_id": quiz_object_id})
+    quiz = await quiz_collection.find_one({"_id": quiz_id, "is_active": True})
     if not quiz:
         raise HTTPException(status_code=404, detail="Quiz nie istnieje")
     if quiz["user_id"] != int(user_id):
         raise HTTPException(status_code=401, detail="Brak uprawnień")
 
-    await quiz_collection.delete_one({"_id": quiz_object_id})
+    await quiz_collection.update_one({"_id": quiz_object_id}, {"$set": {"is_active": False}})
 
     return Response(status_code=204)
 
@@ -304,7 +305,7 @@ async def get_quiz(request: Request, quiz_id: str, data: dict = Depends(validate
         user = data['user']
         user_id = user.get("id")
         quiz = await quiz_collection.find_one(
-            {"_id": ObjectId(quiz_id)},
+            {"_id": ObjectId(quiz_id), "is_active": True},
             {"access_code": 0, "created_at": 0, "updated_at": 0}
         )
 
@@ -349,9 +350,7 @@ async def view_quiz(request: Request, quiz_id: str):
         user_id = None
 
     try:
-        quiz = await quiz_collection.find_one(
-            {"_id": ObjectId(quiz_id)}
-        )
+        quiz = await quiz_collection.find_one({"_id": ObjectId(quiz_id), "is_active": True})
 
         if not quiz:
             raise HTTPException(status_code=404, detail="Quiz nie istnieje")

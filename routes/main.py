@@ -44,10 +44,10 @@ async def home(request: Request):
     })
 
 @main_router.get("/login")
-async def login(code: str):
+async def login(code: str = None):
     result = await api.get_token_response(code)
 
-    if result is None:
+    if result is None or code is None:
         raise HTTPException(status_code=401, detail="Brak uprawnień")
 
     token, refresh_token, expires_in = result
