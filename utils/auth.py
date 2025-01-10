@@ -12,7 +12,7 @@ class Oauth:
     client_id = os.environ.get('DISCORD_CLIENT_ID')
     client_secret = os.environ.get('DISCORD_CLIENT_SECRET')
     redirect_uri = os.environ.get('REDIRECT_URL')
-    scope = os.environ.get('SCOPE')
+    scope = os.environ.get('SCOPE', 'identify%20email%20guilds')
     discord_login_url = os.environ.get('DISCORD_LOGIN_URL')
     discord_token_url = 'https://discord.com/api/oauth2/token'
     discord_api_url = 'https://discord.com/api'

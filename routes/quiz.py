@@ -289,7 +289,7 @@ async def delete_quiz(quiz_id: str, data: dict = Depends(validate_session_with_d
     user_id = user.get("id")
     quiz_object_id = ObjectId(quiz_id)
 
-    quiz = await quiz_collection.find_one({"_id": quiz_id, "is_active": True})
+    quiz = await quiz_collection.find_one({"_id": quiz_object_id, "is_active": True})
     if not quiz:
         raise HTTPException(status_code=404, detail="Quiz nie istnieje")
     if quiz["user_id"] != int(user_id):

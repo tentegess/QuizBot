@@ -12,6 +12,14 @@ function loadPage(page) {
         .then(data => {
             const quizList = document.getElementById('quiz-list');
             quizList.innerHTML = '';
+
+            if (data.quizzes.length === 0) {
+                quizList.innerHTML = `
+                    <p class="text-white fs-3 fw-bold text-center w-100">Nie znaleziono quizów do wyświetlenia.</p>
+                `;
+                return;
+            }
+
             data.quizzes.forEach(quiz => {
                 quizList.innerHTML += `
                     <div class="col">
