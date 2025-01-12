@@ -29,7 +29,7 @@ async def guilds(request: Request, data: dict = Depends(validate_session_with_da
         if guild["id"] in bot_guilds:
             guild["url"] = "/server/" + str(guild["id"])
         else:
-            guild["url"] = os.environ.get('DISCORD_INVITE') + guild['id']
+            guild["url"] = os.environ.get('DISCORD_INVITE') +"&guild_id="+guild['id']
 
         if guild.get("icon"):
             guild["icon"] = f"https://cdn.discordapp.com/icons/{guild['id']}/{guild['icon']}"

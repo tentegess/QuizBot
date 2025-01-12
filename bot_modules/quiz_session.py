@@ -342,9 +342,10 @@ class QuizSession:
         self.question_task = None
 
         game_key = (self.channel.guild.id, self.channel.id)
-        await self.__remove_state()
         if game_key in self.cog.active_games:
             del self.cog.active_games[game_key]
+
+        await self.__remove_state()
 
         games_coll = self.cog.db["Games"]
         results_coll = self.cog.db["Results"]
